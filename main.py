@@ -111,6 +111,7 @@ async def autoreact(ctx, *args):
     await ctx.send(embed=embed)
 
 # ===================== ANTIRAID =====================
+
 @bot.command()
 @commands.has_permissions(manage_guild=True)
 async def antiraid(ctx, mode: str = None, state: str = None, *, options: str = None):
@@ -135,6 +136,7 @@ async def antiraid(ctx, mode: str = None, state: str = None, *, options: str = N
         )
         return await ctx.send(embed=embed)
 
+    # Error embed
     error_embed = discord.Embed(
         description="<:error:1401589697477742742> Invalid syntax / channel / id / prefix / \n<:warning:1401590117499408434>",
         color=discord.Color.red()
@@ -198,14 +200,16 @@ async def antiraid(ctx, mode: str = None, state: str = None, *, options: str = N
         if action not in ["ban", "kick", "mute"] or not channels_param:
             return await ctx.send(embed=error_embed)
 
-        # Apply permission changes
+        # Apply safe permission changes
         target_role = ctx.guild.default_role
         channels_list = []
 
         if channels_param.lower() == "all":
             for ch in ctx.guild.channels:
                 try:
-                    await ch.set_permissions(target_role, use_external_apps=False)
+                    current_overwrites = ch.overwrites_for(target_role)
+                    current_overwrites.update(use_external_apps=False)
+                    await ch.set_permissions(target_role, overwrite=current_overwrites)
                 except discord.Forbidden:
                     pass
             channels_list = ["all"]
@@ -215,7 +219,11 @@ async def antiraid(ctx, mode: str = None, state: str = None, *, options: str = N
                 ch = ctx.guild.get_channel(channel_id)
                 if not ch:
                     return await ctx.send(embed=error_embed)
-                await ch.set_permissions(target_role, use_external_apps=False)
+
+                current_overwrites = ch.overwrites_for(target_role)
+                current_overwrites.update(use_external_apps=False)
+                await ch.set_permissions(target_role, overwrite=current_overwrites)
+
                 channels_list = [channel_id]
             except ValueError:
                 return await ctx.send(embed=error_embed)
