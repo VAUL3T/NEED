@@ -185,21 +185,19 @@ def get_whitelisted_guild_id():
     return m.group(1) if m else None
 
 async def get_channels(guild_id, token):
-    intents = discord.Intents(guilds=True)
+    intents = discord.Intents(guilds=True, guild_messages=True)
     client = discord.Client(intents=intents)
-
     channels = []
 
     @client.event
     async def on_ready():
-        guild = client.get_guild(int(guild_id))
-        if guild is None:
+        try:
+            guild = await client.fetch_guild(int(guild_id))
+            fetched_channels = await guild.fetch_channels()
+            text_channels = [(str(ch.id), ch.name) for ch in fetched_channels if isinstance(ch, discord.TextChannel)]
+            channels.extend(text_channels)
+        finally:
             await client.close()
-            return
-        # Filter text channels only
-        text_channels = [(str(ch.id), ch.name) for ch in guild.text_channels]
-        channels.extend(text_channels)
-        await client.close()
 
     try:
         await client.start(token)
