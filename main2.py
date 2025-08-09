@@ -130,7 +130,6 @@ def replace_token_in_main(new_token):
         f.write(new_text)
     return True
 
-# [NEW LOG CHANNEL FEATURE]
 def read_log_channel():
     if not os.path.exists(MAIN_PY):
         return "(none)"
@@ -153,7 +152,6 @@ def replace_log_channel(new_id):
     with open(MAIN_PY, "w", encoding="utf-8") as f:
         f.write(new_text)
     return True
-# [END FEATURE]
 
 def read_logs():
     if not os.path.exists("bot_stdout.log"):
@@ -206,7 +204,6 @@ def set_token():
     start_process()
     return redirect(url_for("index"))
 
-# [NEW LOG CHANNEL FEATURE]
 @app.route("/set_log_channel", methods=["POST"])
 def set_log_channel():
     channel_id = request.form.get("log_channel", "").strip()
@@ -215,7 +212,6 @@ def set_log_channel():
     replace_log_channel(channel_id)
     start_process()
     return redirect(url_for("index"))
-# [END FEATURE]
 
 if __name__ == "__main__":
     try:
