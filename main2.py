@@ -4,12 +4,11 @@ from flask import Flask, request, redirect, url_for, render_template_string
 import subprocess, threading, os, signal, time, sys, re
 
 APP_HOST = "0.0.0.0"
-APP_PORT = int(os.environ.get("CONTROL_PORT", 80))  # default 80 (use sudo or run as root)
+APP_PORT = int(os.environ.get("CONTROL_PORT", 80))  # default 80
 MAIN_PY = "main.py"
 
 app = Flask(__name__)
 
-# global child process reference and an "enabled" flag
 _child = None
 _enabled = True
 _child_lock = threading.Lock()
@@ -37,6 +36,15 @@ HTML = """<!doctype html>
     </form>
 
     <hr>
+    <h2>Set Log Channel ID</h2>
+    <p>Current log channel: <code>{{ log_channel }}</code></p>
+    <form method="post" action="/set_log_channel">
+      <label>Channel ID:</label><br>
+      <input name="log_channel" style="width:200px" autocomplete="off" required>
+      <button type="submit">Save Channel & Restart Bot</button>
+    </form>
+
+    <hr>
     <h2>Logs (last 200 chars)</h2>
     <pre style="white-space:pre-wrap; max-height:300px; overflow:auto;">{{ logs }}</pre>
 
@@ -53,10 +61,8 @@ def start_process():
             return False, "Disabled"
         if _child and _child.poll() is None:
             return True, "Already running"
-        # Ensure MAIN_PY exists
         if not os.path.exists(MAIN_PY):
             return False, f"{MAIN_PY} not found"
-        # Start process; redirect output to a logfile
         logfile = open("bot_stdout.log", "ab")
         proc = subprocess.Popen([sys.executable, MAIN_PY], stdout=logfile, stderr=subprocess.STDOUT)
         _child = proc
@@ -72,7 +78,6 @@ def stop_process(timeout=5):
             _child.terminate()
         except Exception:
             pass
-        # wait
         try:
             _child.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
@@ -100,7 +105,6 @@ def get_status():
         return "Stopped"
 
 def read_masked_token():
-    # find first TOKEN = "..."
     if not os.path.exists(MAIN_PY):
         return ""
     text = open(MAIN_PY, "r", encoding="utf-8").read()
@@ -113,9 +117,7 @@ def read_masked_token():
     return token[:5] + "*" * (len(token)-5)
 
 def replace_token_in_main(new_token):
-    # Read file, replace first occurrence of TOKEN = "..." or append if none
     if not os.path.exists(MAIN_PY):
-        # create a basic placeholder if not exists
         with open(MAIN_PY, "w", encoding="utf-8") as f:
             f.write(f'TOKEN = "{new_token}"\n')
         return True
@@ -123,11 +125,35 @@ def replace_token_in_main(new_token):
     if re.search(r'TOKEN\s*=\s*["\'](.+?)["\']', text):
         new_text = re.sub(r'TOKEN\s*=\s*["\'](.+?)["\']', f'TOKEN = "{new_token}"', text, count=1)
     else:
-        # append at top
         new_text = f'TOKEN = "{new_token}"\n' + text
     with open(MAIN_PY, "w", encoding="utf-8") as f:
         f.write(new_text)
     return True
+
+# [NEW LOG CHANNEL FEATURE]
+def read_log_channel():
+    if not os.path.exists(MAIN_PY):
+        return "(none)"
+    text = open(MAIN_PY, "r", encoding="utf-8").read()
+    m = re.search(r'LOG_CHANNEL_ID\s*=\s*(\d+)', text)
+    if not m:
+        return "(none)"
+    return m.group(1)
+
+def replace_log_channel(new_id):
+    if not os.path.exists(MAIN_PY):
+        with open(MAIN_PY, "w", encoding="utf-8") as f:
+            f.write(f'LOG_CHANNEL_ID = {new_id}\n')
+        return True
+    text = open(MAIN_PY, "r", encoding="utf-8").read()
+    if re.search(r'LOG_CHANNEL_ID\s*=\s*(\d+)', text):
+        new_text = re.sub(r'LOG_CHANNEL_ID\s*=\s*(\d+)', f'LOG_CHANNEL_ID = {new_id}', text, count=1)
+    else:
+        new_text = f'LOG_CHANNEL_ID = {new_id}\n' + text
+    with open(MAIN_PY, "w", encoding="utf-8") as f:
+        f.write(new_text)
+    return True
+# [END FEATURE]
 
 def read_logs():
     if not os.path.exists("bot_stdout.log"):
@@ -146,21 +172,22 @@ def read_logs():
 @app.route("/", methods=["GET"])
 def index():
     token_mask = read_masked_token()
-    return render_template_string(HTML, status=get_status(), token_mask=token_mask or "(none)", logs=read_logs(), port=APP_PORT)
+    log_channel = read_log_channel()
+    return render_template_string(HTML, status=get_status(),
+                                  token_mask=token_mask or "(none)",
+                                  log_channel=log_channel,
+                                  logs=read_logs(), port=APP_PORT)
 
 @app.route("/action", methods=["POST"])
 def action():
     global _enabled
     cmd = request.form.get("cmd", "")
     if cmd == "shutdown":
-        # stop and disable
-        stopped, msg = stop_process()
+        stop_process()
         _enabled = False
         return redirect(url_for("index"))
     if cmd == "restart":
-        # restart even if disabled? we'll only restart if enabled
         if not _enabled:
-            # quick feedback: enable & restart
             _enabled = True
         start_process()
         return redirect(url_for("index"))
@@ -175,19 +202,25 @@ def set_token():
     token = request.form.get("token", "").strip()
     if not token:
         return redirect(url_for("index"))
-    # write token to MAIN_PY
     replace_token_in_main(token)
-    # restart script
-    _enabled_local = True
     start_process()
     return redirect(url_for("index"))
 
+# [NEW LOG CHANNEL FEATURE]
+@app.route("/set_log_channel", methods=["POST"])
+def set_log_channel():
+    channel_id = request.form.get("log_channel", "").strip()
+    if not channel_id.isdigit():
+        return redirect(url_for("index"))
+    replace_log_channel(channel_id)
+    start_process()
+    return redirect(url_for("index"))
+# [END FEATURE]
+
 if __name__ == "__main__":
-    # start the bot if enabled initially
     try:
         start_process()
     except Exception:
         pass
     print(f"Starting control panel on {APP_HOST}:{APP_PORT} ...")
-    # Bind to all interfaces so http://<droplet-ip>/ works
     app.run(host=APP_HOST, port=APP_PORT, threaded=True)
