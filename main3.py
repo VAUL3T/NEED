@@ -41,18 +41,8 @@ HTML = """<!doctype html>
     </form>
 
     <hr>
-    <h2>Guild selection / Log target</h2>
-    <form method="get" action="/">
-      <label>Choose guild:</label><br>
-      <select name="guild_id" onchange="this.form.submit()">
-        {% for gid, label in guild_options %}
-          <option value="{{ gid }}" {% if gid == selected_guild %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-      <noscript><button type="submit">Select</button></noscript>
-    </form>
-
-    <p>Current log target for <strong>{{ selected_guild }}</strong> : <code>{{ current_log_display }}</code></p>
+    <h2>Log target for Guild {{ selected_guild }}</h2>
+    <p>Current log target: <code>{{ current_log_display }}</code></p>
     <form method="post" action="/set_log_channel">
       <input type="hidden" name="guild_id" value="{{ selected_guild }}">
       <label>Choose channel:</label><br>
@@ -180,6 +170,13 @@ def read_logs():
     except Exception:
         return ""
 
+def get_whitelisted_guild_id():
+    if not os.path.exists(MAIN_PY):
+        return None
+    text = open(MAIN_PY, "r", encoding="utf-8").read()
+    m = re.search(r'WHITELISTED_GUILDS\s*=\s*\[(\d+)\]', text)
+    return m.group(1) if m else None
+
 async def get_channels(guild_id, token):
     client = discord.Client(intents=discord.Intents.default())
     try:
@@ -203,16 +200,11 @@ def run_async_get_channels(guild_id, token):
 
 @app.route("/", methods=["GET"])
 def index():
-    data = load_datafile()
-    guild_ids = list(data.keys())
-    guild_options = [(gid, gid) for gid in guild_ids]
-
-    selected_guild = request.args.get("guild_id")
-    if not selected_guild and guild_ids:
-        selected_guild = guild_ids[0]
+    selected_guild = get_whitelisted_guild_id()
     if not selected_guild:
         selected_guild = ""
 
+    data = load_datafile()
     current_log_display = "(none)"
     current_log_value = ""
     channel_options = []
@@ -235,7 +227,6 @@ def index():
         HTML,
         status=get_status(),
         token_mask=read_masked_token(),
-        guild_options=guild_options,
         selected_guild=selected_guild,
         current_log_display=current_log_display,
         current_log_value=current_log_value,
