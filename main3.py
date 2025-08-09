@@ -127,6 +127,13 @@ def read_masked_token():
         return token
     return token[:5] + "*" * (len(token)-5)
 
+def read_token():
+    if not os.path.exists(MAIN_PY):
+        return None
+    text = open(MAIN_PY, "r", encoding="utf-8").read()
+    m = re.search(r'TOKEN\s*=\s*["\'](.+?)["\']', text)
+    return m.group(1) if m else None
+
 def replace_token_in_main(new_token):
     if not os.path.exists(MAIN_PY):
         with open(MAIN_PY, "w", encoding="utf-8") as f:
@@ -217,8 +224,8 @@ def index():
             current_log_display = str(cfg["log_channel"])
             current_log_value = str(cfg["log_channel"])
 
-        token = read_masked_token()
-        if token != "(none)" and not token.endswith("*"):
+        token = read_token()
+        if token:
             channel_options = run_async_get_channels(selected_guild, token)
         else:
             channel_options = []
