@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
-# control_panel.py
 from flask import Flask, request, redirect, url_for, render_template_string
 import subprocess, threading, os, time, sys, re, json
-import discord
-from discord import SyncWebhook
-import asyncio
+import requests
 
 APP_HOST = "0.0.0.0"
 APP_PORT = int(os.environ.get("CONTROL_PORT", 8080))
@@ -184,35 +181,16 @@ def get_whitelisted_guild_id():
     m = re.search(r'WHITELISTED_GUILDS\s*=\s*\[(\d+)\]', text)
     return m.group(1) if m else None
 
-async def get_channels(guild_id, token):
-    intents = discord.Intents(guilds=True, guild_messages=True)
-    client = discord.Client(intents=intents)
-    channels = []
-
-    @client.event
-    async def on_ready():
-        try:
-            guild = await client.fetch_guild(int(guild_id))
-            fetched_channels = await guild.fetch_channels()
-            text_channels = [(str(ch.id), ch.name) for ch in fetched_channels if isinstance(ch, discord.TextChannel)]
-            channels.extend(text_channels)
-        finally:
-            await client.close()
-
-    try:
-        await client.start(token)
-    except Exception:
+def get_channels(guild_id, token):
+    url = f"https://discord.com/api/v10/guilds/{guild_id}/channels"
+    headers = {"Authorization": f"Bot {token}"}
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        channels = response.json()
+        text_channels = [(str(ch['id']), ch['name']) for ch in channels if ch['type'] == 0]
+        return sorted(text_channels, key=lambda x: x[1])
+    else:
         return []
-
-    return sorted(channels, key=lambda x: x[1])
-
-def run_async_get_channels(guild_id, token):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(get_channels(guild_id, token))
-    finally:
-        loop.close()
 
 @app.route("/", methods=["GET"])
 def index():
@@ -235,7 +213,7 @@ def index():
 
         token = read_token()
         if token:
-            channel_options = run_async_get_channels(selected_guild, token)
+            channel_options = get_channels(selected_guild, token)
         else:
             channel_options = []
 
