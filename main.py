@@ -123,7 +123,12 @@ async def antiraid(ctx, mode: str = None, state: str = None, *, options: str = N
     if "antiraid" not in auto_react_data[guild_id]:
         auto_react_data[guild_id]["antiraid"] = {
             "spam": {"enabled": False, "action": None},
-            "external_app": {"enabled": False, "action": None, "channels": []}
+            "external_app": {
+                "enabled": False,
+                "action": None,
+                "channels": [],
+                "previous_perms": {}  # NEW: store old perms for rollback
+            }
         }
 
     # Syntax help embed (unchanged)
@@ -174,13 +179,32 @@ async def antiraid(ctx, mode: str = None, state: str = None, *, options: str = N
         if state not in ["on", "off"]:
             return await ctx.send(embed=error_embed)
 
+        target_role = ctx.guild.default_role
+
         if state.lower() == "off":
+            # Rollback to previous permissions
+            previous_perms = auto_react_data[guild_id]["antiraid"]["external_app"].get("previous_perms", {})
+            for ch_id, old_value in previous_perms.items():
+                ch = ctx.guild.get_channel(int(ch_id))
+                if not ch:
+                    continue
+                try:
+                    current_overwrites = ch.overwrites_for(target_role)
+                    current_overwrites.update(use_external_apps=old_value)
+                    await ch.set_permissions(target_role, overwrite=current_overwrites)
+                except discord.Forbidden:
+                    pass
+
             auto_react_data[guild_id]["antiraid"]["external_app"] = {
-                "enabled": False, "action": None, "channels": []
+                "enabled": False,
+                "action": None,
+                "channels": [],
+                "previous_perms": {}
             }
             await save_data()
+
             return await ctx.send(embed=discord.Embed(
-                description="<:Ok:1401589649088057425> External app blocking disabled.",
+                description="<:Ok:1401589649088057425> External app blocking disabled and permissions restored.",
                 color=discord.Color.green()
             ))
 
@@ -200,14 +224,15 @@ async def antiraid(ctx, mode: str = None, state: str = None, *, options: str = N
         if action not in ["ban", "kick", "mute"] or not channels_param:
             return await ctx.send(embed=error_embed)
 
-        # Apply safe permission changes
-        target_role = ctx.guild.default_role
         channels_list = []
+        previous_perms = {}
 
+        # Apply safe permission changes
         if channels_param.lower() == "all":
             for ch in ctx.guild.channels:
                 try:
                     current_overwrites = ch.overwrites_for(target_role)
+                    previous_perms[str(ch.id)] = current_overwrites.use_external_apps
                     current_overwrites.update(use_external_apps=False)
                     await ch.set_permissions(target_role, overwrite=current_overwrites)
                 except discord.Forbidden:
@@ -221,6 +246,7 @@ async def antiraid(ctx, mode: str = None, state: str = None, *, options: str = N
                     return await ctx.send(embed=error_embed)
 
                 current_overwrites = ch.overwrites_for(target_role)
+                previous_perms[str(ch.id)] = current_overwrites.use_external_apps
                 current_overwrites.update(use_external_apps=False)
                 await ch.set_permissions(target_role, overwrite=current_overwrites)
 
@@ -231,7 +257,8 @@ async def antiraid(ctx, mode: str = None, state: str = None, *, options: str = N
         auto_react_data[guild_id]["antiraid"]["external_app"] = {
             "enabled": True,
             "action": action,
-            "channels": channels_list
+            "channels": channels_list,
+            "previous_perms": previous_perms
         }
         await save_data()
 
@@ -243,6 +270,7 @@ async def antiraid(ctx, mode: str = None, state: str = None, *, options: str = N
     # ---------------- UNKNOWN MODE ----------------
     else:
         return await ctx.send(embed=error_embed)
+
 # ===================== FORCENICK =====================
 @bot.command(name="forcenick")
 @commands.has_permissions(manage_nicknames=True, manage_guild=True)
@@ -484,7 +512,7 @@ async def on_message(message):
     # Anti-raid spam handling
     if config.get("antiraid_spam_enabled") and len(timestamps) >= 5:
         action = config.get("antiraid_spam_action")
-        reason = f"User triggered antiraid | setup by : {bot.user.name}"
+        reason = f"User triggered anti-raid"
         try:
             if action == "mute":
                 role = discord.utils.get(message.guild.roles, name="Muted")
