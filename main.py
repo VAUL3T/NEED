@@ -22,6 +22,16 @@ bot = commands.Bot(command_prefix="$", intents=intents)
 WHITELISTED_GUILDS = [1345476135487672350]
 DATA_FILE = "1345476135487672350.json"
 
+@bot.event
+async def on_ready():
+    for guild_id in WHITELISTED_GUILDS:
+        try:
+            bot.tree.copy_global_to(guild=discord.Object(id=guild_id))
+            await bot.tree.sync(guild=discord.Object(id=guild_id))
+        except Exception as e:
+            print(f"Failed to sync commands for guild {guild_id}: {e}")
+    print(f"Bot is ready and commands synced for {len(WHITELISTED_GUILDS)} guild(s).")
+
 # Load persistent data
 if os.path.exists(DATA_FILE):
     try:
@@ -38,6 +48,19 @@ async def save_data():
     async with aiofiles.open(DATA_FILE, "w") as f:
         await f.write(json.dumps(auto_react_data, indent=2))
 
+ADMIN_DATA_FILE = "bot.json"
+if os.path.exists(ADMIN_DATA_FILE):
+    with open(ADMIN_DATA_FILE, "r") as f:
+        admin_data = json.load(f)
+else:
+    admin_data = {"admins": [445468274659033088]}
+    with open(ADMIN_DATA_FILE, "w") as f:
+        json.dump(admin_data, f)
+
+async def save_admins():
+    async with aiofiles.open(ADMIN_DATA_FILE, "w") as f:
+        await f.write(json.dumps(admin_data, indent=2))
+
 # Reusable embed builder
 def make_embed(description: str, color=discord.Color.blurple(), title: str = None):
     e = discord.Embed(description=description, color=color)
@@ -52,6 +75,42 @@ message_history = defaultdict(list)  # user_id -> list of timestamps (float)
 @bot.check
 async def globally_whitelist_guilds(ctx):
     return ctx.guild and ctx.guild.id in WHITELISTED_GUILDS
+
+@bot.tree.command(name="echo", description="Need echos you")
+@app_commands.checks.has_permissions(manage_messages=True)
+async def echo(interaction: discord.Interaction, text: str):
+    if interaction.guild_id not in WHITELISTED_GUILDS:
+        await interaction.response.send_message(embed=make_embed("<:warning:1401590117499408434> This command is not allowed in this guild.", discord.Color.orange()))
+        return
+    
+    if interaction.user.id not in admin_data["admins"]:
+        await interaction.response.send_message(embed=make_embed("<:warning:1401590117499408434> This command requires an **extra whitelist**", discord.Color.orange()))
+        return
+
+    await interaction.channel.send(text)
+    await interaction.response.defer()
+
+@bot.command()
+async def admin(ctx, member: discord.Member = None):
+    if member is None:
+        await ctx.send(embed=make_embed("Syntax: $admin @user", discord.Color.orange()))
+        return
+    
+    if ctx.author.id not in admin_data["admins"]:
+        await ctx.send(embed=make_embed(f"<:warning:1401590117499408434> {ctx.author.mention} You must be an **admin** to run this command", discord.Color.orange()))
+        return
+
+    user_id = member.id
+    username = member.name
+
+    if user_id in admin_data["admins"]:
+        admin_data["admins"].remove(user_id)
+        await save_admins()
+        await ctx.send(embed=make_embed(f"<:error:1401589697477742742> {ctx.author.mention} **{username}** is no longer an admin", discord.Color.red()))
+    else:
+        admin_data["admins"].append(user_id)
+        await save_admins()
+        await ctx.send(embed=make_embed(f"<:Ok:1401589649088057425> {ctx.author.mention} **{username}** is now an admin", discord.Color.green()))
 
 # ===================== AUTOREACT =====================
 @bot.command()
@@ -815,6 +874,23 @@ async def on_command_error(ctx, error):
         # re-raise so you can see unhandled exceptions in logs
         raise error
 
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.MissingPermissions):
+        perms = [perm.replace('_', '_') for perm in error.missing_permissions]
+        embed = make_embed(f"<:warning:1401590117499408434> You’re missing permission: {', '.join(perms)}", discord.Color.orange())
+        if interaction.response.is_done():
+            await interaction.followup.send(embed=embed)
+        else:
+            await interaction.response.send_message(embed=embed)
+    elif isinstance(error, app_commands.CommandOnCooldown):
+        embed = make_embed(f"<a:clock:1401933869804032061> You’re on cooldown. Try again in `{error.retry_after:.1f}`s.", discord.Color.orange())
+        if interaction.response.is_done():
+            await interaction.followup.send(embed=embed)
+        else:
+            await interaction.response.send_message(embed=embed)
+    else:
+        raise error
 # ===================== MUTE / UNMUTE and PURGE commands (useful extras) =====================
 @bot.command()
 @commands.has_permissions(manage_roles=True)
