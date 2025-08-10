@@ -89,8 +89,8 @@ async def echo(interaction: discord.Interaction, text: str):
         return
 
     await interaction.channel.send(text)
-    await interaction.response.defer()
-
+    await interaction.response.send_message("👍", ephemeral=True)
+    
 @bot.command()
 async def admin(ctx, member: discord.Member = None):
     if member is None:
