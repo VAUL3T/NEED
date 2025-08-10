@@ -9,6 +9,7 @@ from collections import defaultdict
 import aiofiles
 import asyncio
 import io
+from io import BytesIO
 from discord import app_commands
 
 intents = discord.Intents.default()
@@ -112,6 +113,79 @@ async def admin(ctx, member: discord.Member = None):
         admin_data["admins"].append(user_id)
         await save_admins()
         await ctx.send(embed=make_embed(f"<:Ok:1401589649088057425> {ctx.author.mention} **{username}** is now an admin", discord.Color.green()))
+
+class BackupView(discord.ui.View):
+    def __init__(self, author):
+        super().__init__(timeout=60)
+        self.author = author
+        self.value = None
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.author.id:
+            await interaction.response.send_message(
+                "<:warning:1401590117499408434> This confirmation is not for you.",
+                ephemeral=True
+            )
+            return False
+        return True
+
+    @discord.ui.button(label="Approve", style=discord.ButtonStyle.success)
+    async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.value = True
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(view=self)
+        self.stop()
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.value = False
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(view=self)
+        self.stop()
+
+
+@commands.has_permissions(manage_guild=True, administrator=True)
+@bot.command(name="backup")
+async def backup_users(ctx, target: str):
+    if target.lower() != "users":
+        return
+
+    temp_backup = {}
+    for member in ctx.guild.members:
+        role_ids = [role.id for role in member.roles if role != ctx.guild.default_role]
+        temp_backup[str(member.id)] = role_ids
+
+    temp_json = json.dumps(temp_backup, indent=4).encode('utf-8')
+    approx_size_mb = round(len(temp_json) / (1024 * 1024), 2)
+
+    view = BackupView(ctx.author)
+    embed = discord.Embed(
+        description=f"<:warning:1401590117499408434> Are you sure you want to backup all users? Approximate file size is **{approx_size_mb}MB** ?",
+        color=discord.Color.orange()
+    )
+    await ctx.send(embed=embed, view=view)
+
+    await view.wait()
+
+    if view.value is None or view.value is False:
+        return
+
+    waiting_msg = await ctx.send("<a:clock:1401933869804032061> This may take a while . . .")
+
+    backup_data = temp_backup  # Already prepared above
+    json_bytes = temp_json
+    file_size = approx_size_mb
+    user_count = len(backup_data)
+
+    file = discord.File(BytesIO(json_bytes), filename="user_backups.json")
+
+    await waiting_msg.delete()
+    await ctx.send(
+        f"<:files:1403754002989973566> Backup created successfully with size **{file_size}MB** with **{user_count} Users**",
+        file=file
+    )
 
 # ===================== AUTOREACT =====================
 @bot.command()
