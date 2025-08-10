@@ -9,6 +9,7 @@ from collections import defaultdict
 import aiofiles
 import asyncio
 import io
+from discord import app_commands
 
 intents = discord.Intents.default()
 intents.messages = True
