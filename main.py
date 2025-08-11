@@ -381,6 +381,42 @@ async def backup(ctx, target=None, action=None, member: discord.Member = None):
     else:
         await ctx.send(embed=make_embed("<:warning:1401590117499408434> Unknown target. Use `users`, `server` or `status`.", discord.Color.orange()))
 # ===================== AUTOREACT =====================
+
+@bot.command()
+async def steal(ctx):
+    async for msg in ctx.channel.history(limit=2):  # Holt aktuelle & vorherige Nachricht
+        if msg == ctx.message:
+            continue
+
+        # Sticker-Check
+        if msg.stickers:
+            sticker = msg.stickers[0]
+            embed = discord.Embed(
+                title=sticker.name,
+                description=f"**ID**\n{sticker.id}\n\n**Image**\n[Click here]({sticker.url})",
+                color=discord.Color.dark_gray()
+            )
+            embed.set_image(url=sticker.url)
+            await ctx.send(embed=embed)
+            return
+
+        # Emoji-Check (Custom Emojis, kein Unicode)
+        if msg.content:
+            for emoji in msg.emojis:
+                embed = discord.Embed(
+                    title=emoji.name,
+                    description=f"**ID**\n{emoji.id}\n\n**Image**\n[Click here]({emoji.url})",
+                    color=discord.Color.dark_gray()
+                )
+                embed.set_image(url=emoji.url)
+                await ctx.send(embed=embed)
+                return
+
+    await ctx.send(embed=discord.Embed(
+        description="<:warning:1401590117499408434> No sticker or custom emoji found in the last message.",
+        color=discord.Color.dark_gray()
+    ))
+    
 @bot.command()
 @commands.has_permissions(manage_messages=True)
 async def autoreact(ctx, *args):
