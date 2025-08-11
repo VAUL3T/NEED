@@ -93,13 +93,6 @@ async def globally_whitelist_guilds(ctx):
     attachment="Optional attachment (image, file)",
     reply="Optional message ID to reply to"
 )
-
-@bot.tree.command(name="echo", description="Need echos you")
-@app_commands.describe(
-    text="Text to send",
-    attachment="Optional attachment (image, file)",
-    reply="Optional message ID to reply to"
-)
 @app_commands.checks.has_permissions(manage_messages=True)
 async def echo(interaction: discord.Interaction, text: str, attachment: discord.Attachment = None, reply: str = None):
     if interaction.guild_id not in WHITELISTED_GUILDS:
@@ -144,7 +137,6 @@ async def echo(interaction: discord.Interaction, text: str, attachment: discord.
         await interaction.channel.send(content=text, files=files if files else None)
 
     await interaction.response.send_message("👍", ephemeral=True)
-
 
 @bot.command()
 async def admin(ctx, member: discord.Member = None):
