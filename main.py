@@ -134,17 +134,19 @@ class ConfirmView(View):
     @button(label="Approve", style=discord.ButtonStyle.green)
     async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.value = True
-        self.disable_all_items()
+        for item in self.children:
+            item.disabled = True
         await interaction.response.edit_message(view=self)
         self.stop()
 
     @button(label="Cancel", style=discord.ButtonStyle.red)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.value = False
-        self.disable_all_items()
+        for item in self.children:
+            item.disabled = True
         await interaction.response.edit_message(view=self)
         self.stop()
-
+        
 @commands.has_permissions(manage_guild=True, administrator=True)
 @bot.command()
 async def backup(ctx, target=None, action=None, member: discord.Member = None):
