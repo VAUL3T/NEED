@@ -88,19 +88,55 @@ async def globally_whitelist_guilds(ctx):
     return ctx.guild and ctx.guild.id in WHITELISTED_GUILDS
 
 @bot.tree.command(name="echo", description="Need echos you")
+@app_commands.describe(
+    text="Text to send",
+    attachment="Optional attachment (image, file)",
+    reply="Optional message ID to reply to"
+)
 @app_commands.checks.has_permissions(manage_messages=True)
-async def echo(interaction: discord.Interaction, text: str):
+async def echo(interaction: discord.Interaction, text: str, attachment: discord.Attachment = None, reply: str = None):
     if interaction.guild_id not in WHITELISTED_GUILDS:
-        await interaction.response.send_message(embed=make_embed("<:warning:1401590117499408434> This command is not allowed in this guild.", discord.Color.orange()))
+        await interaction.response.send_message(
+            embed=make_embed("<:warning:1401590117499408434> This command is not allowed in this guild.", discord.Color.orange()),
+            ephemeral=True
+        )
         return
     
     if interaction.user.id not in admin_data["admins"]:
-        await interaction.response.send_message(embed=make_embed("<:warning:1401590117499408434> This command requires an **extra whitelist**", discord.Color.orange()))
+        await interaction.response.send_message(
+            embed=make_embed("<:warning:1401590117499408434> This command requires an **extra whitelist**", discord.Color.orange()),
+            ephemeral=True
+        )
         return
 
-    await interaction.channel.send(text)
+    files = []
+    if attachment:
+        try:
+            fp = await attachment.read()
+            files.append(discord.File(fp=fp, filename=attachment.filename))
+        except Exception:
+            await interaction.response.send_message(
+                embed=make_embed("<:warning:1401590117499408434> Failed to download the attachment.", discord.Color.orange()),
+                ephemeral=True
+            )
+            return
+
+    if reply:
+        try:
+            msg_id = int(reply)
+            message = await interaction.channel.fetch_message(msg_id)
+            await message.reply(content=text, files=files if files else None)
+        except (ValueError, discord.NotFound):
+            await interaction.response.send_message(
+                embed=make_embed("<:warning:1401590117499408434> Invalid message ID.", discord.Color.orange()),
+                ephemeral=True
+            )
+            return
+    else:
+        await interaction.channel.send(content=text, files=files if files else None)
+
     await interaction.response.send_message("👍", ephemeral=True)
-    
+
 @bot.command()
 async def admin(ctx, member: discord.Member = None):
     if member is None:
