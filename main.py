@@ -146,192 +146,215 @@ class ConfirmView(View):
         self.stop()
 
 @commands.has_permissions(manage_guild=True, administrator=True)
-@commands.group(name="backup", invoke_without_command=True)
-async def backup(ctx):
-    embed = discord.Embed(
-        title="Command: backup",
-        description="Syntax : `$backup users`\n"
-                    "Syntax : `$backup users file`\n"
-                    "Syntax : `$backup users load <@user>`\n"
-                    "Syntax : `$backup server`\n"
-                    "Syntax : `$backup server file`\n"
-                    "Syntax : `$backup server load`",
-        color=discord.Color.blurple()
-    )
-    await ctx.send(embed=embed)
-
-@backup.group(name="users", invoke_without_command=True)
-async def backup_users(ctx):
-    members = [m for m in ctx.guild.members if not m.bot]
-    data = {}
-    for m in members:
-        data[str(m.id)] = [r.id for r in m.roles if r != ctx.guild.default_role]
-    size_kb = len(json.dumps(data).encode("utf-8")) / 1024
-    size_mb = round(size_kb / 1024, 2)
-
-    view = ConfirmView(ctx.author)
-    await ctx.send(embed=make_embed(f"<:warning:1401590117499408434> Are you sure you want to backup all users? Approximate file size is **{size_mb}MB** ?", discord.Color.orange()), view=view)
-    await view.wait()
-    if view.value is None or not view.value:
-        return
-    if size_mb > 500:
-        await ctx.send(embed=make_embed("<a:clock:1401933869804032061> This may take a while . . .", discord.Color.orange()))
-
-    with open("user_backups.json", "w") as f:
-        json.dump(data, f, indent=4)
-
-    user_count = len(data)
-    await ctx.send(embed=make_embed(f"<:files:1403754002989973566> Backup created successfully with size **{size_mb}MB** with **{user_count} Users**", discord.Color.green()))
-
-@backup_users.command(name="file")
-async def backup_users_file(ctx):
-    if not os.path.exists("user_backups.json"):
-        await ctx.send(embed=make_embed("<:warning:1401590117499408434> No backup file found.", discord.Color.orange()))
-        return
-    try:
-        await ctx.author.send(file=discord.File("user_backups.json"))
-        await ctx.send(embed=make_embed("<:Ok:1401589649088057425> File sent via **DMs**", discord.Color.green()))
-    except discord.Forbidden:
-        await ctx.send(embed=make_embed("<:warning:1401590117499408434> I couldn't send you the file via DMs. Please check your privacy settings.", discord.Color.orange()))
-
-@backup_users.command(name="load")
-async def backup_users_load(ctx, member: discord.Member):
-    if not os.path.exists("user_backups.json"):
-        await ctx.send(embed=make_embed("<:warning:1401590117499408434> No backup file found.", discord.Color.orange()))
-        return
-    with open("user_backups.json", "r") as f:
-        data = json.load(f)
-    if str(member.id) not in data:
-        await ctx.send(embed=make_embed("<:warning:1401590117499408434> User not found in backup.", discord.Color.orange()))
+@commands.command(name="backup")
+async def backup(ctx, target=None, action=None, member: discord.Member = None):
+    if target is None:
+        embed = discord.Embed(
+            title="Command: backup",
+            description=(
+                "Syntax : `$backup users`\n"
+                "Syntax : `$backup users file`\n"
+                "Syntax : `$backup users load <@user>`\n"
+                "Syntax : `$backup server`\n"
+                "Syntax : `$backup server file`\n"
+                "Syntax : `$backup server load`"
+            ),
+            color=discord.Color.blurple()
+        )
+        await ctx.send(embed=embed)
         return
 
-    view = ConfirmView(ctx.author)
-    await ctx.send(embed=make_embed(f"<:warning:1401590117499408434> Do you want to **restore the user**?", discord.Color.orange()), view=view)
-    await view.wait()
-    if not view.value:
-        return
+    if target.lower() == "users":
+        if action is None or action.lower() == "backup":
+            members = [m for m in ctx.guild.members if not m.bot]
+            data = {str(m.id): [r.id for r in m.roles if r != ctx.guild.default_role] for m in members}
+            size_kb = len(json.dumps(data).encode("utf-8")) / 1024
+            size_mb = round(size_kb / 1024, 2)
 
-    roles = [ctx.guild.get_role(rid) for rid in data[str(member.id)] if ctx.guild.get_role(rid)]
-    failed = sum(1 for rid in data[str(member.id)] if ctx.guild.get_role(rid) is None)
-    await member.add_roles(*roles, reason="User restored")
-    await ctx.send(embed=make_embed(f"<:Ok:1401589649088057425> User restored **{failed} Roles failed | {len(roles)} Roles given**", discord.Color.green()))
+            view = ConfirmView(ctx.author)
+            await ctx.send(embed=make_embed(
+                f"<:warning:1401590117499408434> Are you sure you want to backup all users? Approximate file size is **{size_mb}MB** ?",
+                discord.Color.orange()
+            ), view=view)
+            await view.wait()
+            if not view.value:
+                return
 
-@backup.group(name="server", invoke_without_command=True)
-async def backup_server(ctx):
-    guild = ctx.guild
-    categories = []
-    for cat in guild.categories:
-        cat_data = {"name": cat.name, "channels": []}
-        for ch in sorted(cat.channels, key=lambda c: c.position):
-            ch_data = {
-                "name": ch.name,
-                "type": str(ch.type),
-                "position": ch.position,
-                "slowmode_delay": getattr(ch, "slowmode_delay", 0),
-                "nsfw": getattr(ch, "nsfw", False),
-                "bitrate": getattr(ch, "bitrate", None),
-                "user_limit": getattr(ch, "user_limit", None)
-            }
-            cat_data["channels"].append(ch_data)
-        categories.append(cat_data)
-    uncategorized = []
-    for ch in sorted([c for c in guild.channels if c.category is None], key=lambda c: c.position):
-        ch_data = {
-            "name": ch.name,
-            "type": str(ch.type),
-            "position": ch.position,
-            "slowmode_delay": getattr(ch, "slowmode_delay", 0),
-            "nsfw": getattr(ch, "nsfw", False),
-            "bitrate": getattr(ch, "bitrate", None),
-            "user_limit": getattr(ch, "user_limit", None)
-        }
-        uncategorized.append(ch_data)
+            if size_mb > 500:
+                await ctx.send(embed=make_embed("<a:clock:1401933869804032061> This may take a while . . .", discord.Color.orange()))
 
-    data = {"categories": categories, "uncategorized": uncategorized}
-    size_kb = len(json.dumps(data).encode("utf-8")) / 1024
-    size_mb = round(size_kb / 1024, 2)
+            with open("user_backups.json", "w") as f:
+                json.dump(data, f, indent=4)
 
-    view = ConfirmView(ctx.author)
-    await ctx.send(embed=make_embed(f"<:warning:1401590117499408434> Are you sure you want to backup the server? Approximate file size is **{size_mb}MB** ?", discord.Color.orange()), view=view)
-    await view.wait()
-    if not view.value:
-        return
-    if size_mb > 500:
-        await ctx.send(embed=make_embed("<a:clock:1401933869804032061> This may take a while . . .", discord.Color.orange()))
+            user_count = len(data)
+            await ctx.send(embed=make_embed(
+                f"<:files:1403754002989973566> Backup created successfully with size **{size_mb}MB** with **{user_count} Users**",
+                discord.Color.green()
+            ))
+        elif action.lower() == "file":
+            if not os.path.exists("user_backups.json"):
+                await ctx.send(embed=make_embed("<:warning:1401590117499408434> No backup file found.", discord.Color.orange()))
+                return
+            try:
+                await ctx.author.send(file=discord.File("user_backups.json"))
+                await ctx.send(embed=make_embed("<:Ok:1401589649088057425> File sent via **DMs**", discord.Color.green()))
+            except discord.Forbidden:
+                await ctx.send(embed=make_embed("<:warning:1401590117499408434> I couldn't send you the file via DMs. Please check your privacy settings.", discord.Color.orange()))
+        elif action.lower() == "load":
+            if member is None:
+                await ctx.send(embed=make_embed("<:warning:1401590117499408434> Missing required argument: `member`", discord.Color.orange()))
+                return
+            if not os.path.exists("user_backups.json"):
+                await ctx.send(embed=make_embed("<:warning:1401590117499408434> No backup file found.", discord.Color.orange()))
+                return
+            with open("user_backups.json", "r") as f:
+                data = json.load(f)
+            if str(member.id) not in data:
+                await ctx.send(embed=make_embed("<:warning:1401590117499408434> User not found in backup.", discord.Color.orange()))
+                return
 
-    with open("server_backup.json", "w") as f:
-        json.dump(data, f, indent=4)
+            view = ConfirmView(ctx.author)
+            await ctx.send(embed=make_embed(
+                "<:warning:1401590117499408434> Do you want to **restore the user**?",
+                discord.Color.orange()
+            ), view=view)
+            await view.wait()
+            if not view.value:
+                return
 
-    total_channels = sum(len(c["channels"]) for c in categories) + len(uncategorized)
-    await ctx.send(embed=make_embed(f"<:files:1403754002989973566> Backup created successfully with size **{size_mb}MB** with **{total_channels} Channels**", discord.Color.green()))
+            roles = [ctx.guild.get_role(rid) for rid in data[str(member.id)] if ctx.guild.get_role(rid)]
+            failed = sum(1 for rid in data[str(member.id)] if ctx.guild.get_role(rid) is None)
+            await member.add_roles(*roles, reason="User restored")
+            await ctx.send(embed=make_embed(
+                f"<:Ok:1401589649088057425> User restored **{failed} Roles failed | {len(roles)} Roles given**",
+                discord.Color.green()
+            ))
+        else:
+            await ctx.send(embed=make_embed("<:warning:1401590117499408434> Unknown action for users backup.", discord.Color.orange()))
+    elif target.lower() == "server":
+        if action is None or action.lower() == "backup":
+            guild = ctx.guild
+            categories = []
+            for cat in guild.categories:
+                cat_data = {"name": cat.name, "channels": []}
+                for ch in sorted(cat.channels, key=lambda c: c.position):
+                    ch_data = {
+                        "name": ch.name,
+                        "type": str(ch.type),
+                        "position": ch.position,
+                        "slowmode_delay": getattr(ch, "slowmode_delay", 0),
+                        "nsfw": getattr(ch, "nsfw", False),
+                        "bitrate": getattr(ch, "bitrate", None),
+                        "user_limit": getattr(ch, "user_limit", None)
+                    }
+                    cat_data["channels"].append(ch_data)
+                categories.append(cat_data)
 
-@backup_server.command(name="file")
-async def backup_server_file(ctx):
-    if not os.path.exists("server_backup.json"):
-        await ctx.send(embed=make_embed("<:warning:1401590117499408434> No backup file found.", discord.Color.orange()))
-        return
-    try:
-        await ctx.author.send(file=discord.File("server_backup.json"))
-        await ctx.send(embed=make_embed("<:Ok:1401589649088057425> File sent via **DMs**", discord.Color.green()))
-    except discord.Forbidden:
-        await ctx.send(embed=make_embed("<:warning:1401590117499408434> I couldn't send you the file via DMs. Please check your privacy settings.", discord.Color.orange()))
+            uncategorized = []
+            for ch in sorted([c for c in guild.channels if c.category is None], key=lambda c: c.position):
+                ch_data = {
+                    "name": ch.name,
+                    "type": str(ch.type),
+                    "position": ch.position,
+                    "slowmode_delay": getattr(ch, "slowmode_delay", 0),
+                    "nsfw": getattr(ch, "nsfw", False),
+                    "bitrate": getattr(ch, "bitrate", None),
+                    "user_limit": getattr(ch, "user_limit", None)
+                }
+                uncategorized.append(ch_data)
 
-@backup_server.command(name="load")
-async def backup_server_load(ctx):
-    if not os.path.exists("server_backup.json"):
-        await ctx.send(embed=make_embed("<:warning:1401590117499408434> No backup file found.", discord.Color.orange()))
-        return
-    with open("server_backup.json", "r") as f:
-        data = json.load(f)
+            data = {"categories": categories, "uncategorized": uncategorized}
+            size_kb = len(json.dumps(data).encode("utf-8")) / 1024
+            size_mb = round(size_kb / 1024, 2)
 
-    view = ConfirmView(ctx.author)
-    await ctx.send(embed=make_embed(f"<:warning:1401590117499408434> Do you want to **restore the server**?", discord.Color.orange()), view=view)
-    await view.wait()
-    if not view.value:
-        return
+            view = ConfirmView(ctx.author)
+            await ctx.send(embed=make_embed(
+                f"<:warning:1401590117499408434> Are you sure you want to backup the server? Approximate file size is **{size_mb}MB** ?",
+                discord.Color.orange()
+            ), view=view)
+            await view.wait()
+            if not view.value:
+                return
 
-    # Delete all channels first
-    for ch in ctx.guild.channels:
-        await ch.delete()
+            if size_mb > 500:
+                await ctx.send(embed=make_embed("<a:clock:1401933869804032061> This may take a while . . .", discord.Color.orange()))
 
-    # Recreate categories & channels
-    for cat_data in data["categories"]:
-        category = await ctx.guild.create_category(cat_data["name"])
-        for ch_data in cat_data["channels"]:
-            if ch_data["type"] == "text":
-                await ctx.guild.create_text_channel(
-                    ch_data["name"],
-                    category=category,
-                    slowmode_delay=ch_data["slowmode_delay"],
-                    nsfw=ch_data["nsfw"],
-                    position=ch_data["position"]
-                )
-            elif ch_data["type"] == "voice":
-                await ctx.guild.create_voice_channel(
-                    ch_data["name"],
-                    category=category,
-                    bitrate=ch_data["bitrate"],
-                    user_limit=ch_data["user_limit"],
-                    position=ch_data["position"]
-                )
-    # Uncategorized channels
-    for ch_data in data["uncategorized"]:
-        if ch_data["type"] == "text":
-            await ctx.guild.create_text_channel(
-                ch_data["name"],
-                slowmode_delay=ch_data["slowmode_delay"],
-                nsfw=ch_data["nsfw"],
-                position=ch_data["position"]
-            )
-        elif ch_data["type"] == "voice":
-            await ctx.guild.create_voice_channel(
-                ch_data["name"],
-                bitrate=ch_data["bitrate"],
-                user_limit=ch_data["user_limit"],
-                position=ch_data["position"]
-            )
+            with open("server_backup.json", "w") as f:
+                json.dump(data, f, indent=4)
 
-    await ctx.send(embed=make_embed("<:Ok:1401589649088057425> Server restored", discord.Color.green()))
+            total_channels = sum(len(c["channels"]) for c in categories) + len(uncategorized)
+            await ctx.send(embed=make_embed(
+                f"<:files:1403754002989973566> Backup created successfully with size **{size_mb}MB** with **{total_channels} Channels**",
+                discord.Color.green()
+            ))
+        elif action and action.lower() == "file":
+            if not os.path.exists("server_backup.json"):
+                await ctx.send(embed=make_embed("<:warning:1401590117499408434> No backup file found.", discord.Color.orange()))
+                return
+            try:
+                await ctx.author.send(file=discord.File("server_backup.json"))
+                await ctx.send(embed=make_embed("<:Ok:1401589649088057425> File sent via **DMs**", discord.Color.green()))
+            except discord.Forbidden:
+                await ctx.send(embed=make_embed("<:warning:1401590117499408434> I couldn't send you the file via DMs. Please check your privacy settings.", discord.Color.orange()))
+        elif action and action.lower() == "load":
+            if not os.path.exists("server_backup.json"):
+                await ctx.send(embed=make_embed("<:warning:1401590117499408434> No backup file found.", discord.Color.orange()))
+                return
+            with open("server_backup.json", "r") as f:
+                data = json.load(f)
+
+            view = ConfirmView(ctx.author)
+            await ctx.send(embed=make_embed(
+                "<:warning:1401590117499408434> Do you want to **restore the server**?",
+                discord.Color.orange()
+            ), view=view)
+            await view.wait()
+            if not view.value:
+                return
+
+            for ch in ctx.guild.channels:
+                await ch.delete()
+
+            for cat_data in data["categories"]:
+                category = await ctx.guild.create_category(cat_data["name"])
+                for ch_data in cat_data["channels"]:
+                    if ch_data["type"] == "text":
+                        await ctx.guild.create_text_channel(
+                            ch_data["name"],
+                            category=category,
+                            slowmode_delay=ch_data["slowmode_delay"],
+                            nsfw=ch_data["nsfw"],
+                            position=ch_data["position"]
+                        )
+                    elif ch_data["type"] == "voice":
+                        await ctx.guild.create_voice_channel(
+                            ch_data["name"],
+                            category=category,
+                            bitrate=ch_data["bitrate"],
+                            user_limit=ch_data["user_limit"],
+                            position=ch_data["position"]
+                        )
+            for ch_data in data["uncategorized"]:
+                if ch_data["type"] == "text":
+                    await ctx.guild.create_text_channel(
+                        ch_data["name"],
+                        slowmode_delay=ch_data["slowmode_delay"],
+                        nsfw=ch_data["nsfw"],
+                        position=ch_data["position"]
+                    )
+                elif ch_data["type"] == "voice":
+                    await ctx.guild.create_voice_channel(
+                        ch_data["name"],
+                        bitrate=ch_data["bitrate"],
+                        user_limit=ch_data["user_limit"],
+                        position=ch_data["position"]
+                    )
+
+            await ctx.send(embed=make_embed("<:Ok:1401589649088057425> Server restored", discord.Color.green()))
+        else:
+            await ctx.send(embed=make_embed("<:warning:1401590117499408434> Unknown action for server backup.", discord.Color.orange()))
+    else:
+        await ctx.send(embed=make_embed("<:warning:1401590117499408434> Unknown target. Use `users` or `server`.", discord.Color.orange()))
 # ===================== AUTOREACT =====================
 @bot.command()
 @commands.has_permissions(manage_messages=True)
