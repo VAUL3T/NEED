@@ -146,7 +146,7 @@ class ConfirmView(View):
         self.stop()
 
 @commands.has_permissions(manage_guild=True, administrator=True)
-@commands.command(name="backup")
+@bot.command()
 async def backup(ctx, target=None, action=None, member: discord.Member = None):
     if target is None:
         embed = discord.Embed(
