@@ -149,7 +149,7 @@ class BackupView(discord.ui.View):
 
 @commands.has_permissions(manage_guild=True, administrator=True)
 @bot.group(name="backup", invoke_without_command=True)
-async def backup(ctx, target: str = None, *, arg=None):
+async def backup(ctx, target: str = None, *, arg: str = None):
     if target is None:
         embed = discord.Embed(
             title="Command: backup",
@@ -165,11 +165,45 @@ async def backup(ctx, target: str = None, *, arg=None):
 
     if target_lower == "users":
         if arg is None:
+            backup_data = {}
+            for member in ctx.guild.members:
+                role_ids = [role.id for role in member.roles if role != ctx.guild.default_role]
+                backup_data[str(member.id)] = role_ids
+
+            json_bytes = json.dumps(backup_data, indent=4).encode("utf-8")
+            file_size_mb = round(len(json_bytes) / (1024 * 1024), 2)
+            user_count = len(backup_data)
+
+            view = BackupView(ctx.author)
             embed = discord.Embed(
-                description="<:warning:1401590117499408434> Missing required argument: `arg`",
+                description=f"<:warning:1401590117499408434> Are you sure you want to backup all users? Approximate file size is **{file_size_mb}MB** ?",
                 color=discord.Color.orange()
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, view=view)
+
+            await view.wait()
+            if view.value is None or view.value is False:
+                return
+
+            waiting_msg = None
+            if file_size_mb > 500:
+                waiting_embed = discord.Embed(
+                    description="<a:clock:1401933869804032061> This may take a while . . .",
+                    color=discord.Color.orange()
+                )
+                waiting_msg = await ctx.send(embed=waiting_embed)
+
+            with open(BACKUP_FILE, "wb") as f:
+                f.write(json_bytes)
+
+            if waiting_msg:
+                await waiting_msg.delete()
+
+            success_embed = discord.Embed(
+                description=f"<:files:1403754002989973566> Backup created successfully with size **{file_size_mb}MB** with **{user_count} Users**",
+                color=discord.Color.green()
+            )
+            await ctx.send(embed=success_embed)
             return
 
         arg_lower = arg.lower()
@@ -282,48 +316,6 @@ async def backup(ctx, target: str = None, *, arg=None):
             return
 
         else:
-            if arg_lower == "":
-                backup_data = {}
-                for member in ctx.guild.members:
-                    role_ids = [role.id for role in member.roles if role != ctx.guild.default_role]
-                    backup_data[str(member.id)] = role_ids
-
-                json_bytes = json.dumps(backup_data, indent=4).encode("utf-8")
-                file_size_mb = round(len(json_bytes) / (1024 * 1024), 2)
-                user_count = len(backup_data)
-
-                view = BackupView(ctx.author)
-                embed = discord.Embed(
-                    description=f"<:warning:1401590117499408434> Are you sure you want to backup all users? Approximate file size is **{file_size_mb}MB** ?",
-                    color=discord.Color.orange()
-                )
-                await ctx.send(embed=embed, view=view)
-
-                await view.wait()
-                if view.value is None or view.value is False:
-                    return
-
-                waiting_msg = None
-                if file_size_mb > 500:
-                    waiting_embed = discord.Embed(
-                        description="<a:clock:1401933869804032061> This may take a while . . .",
-                        color=discord.Color.orange()
-                    )
-                    waiting_msg = await ctx.send(embed=waiting_embed)
-
-                with open(BACKUP_FILE, "wb") as f:
-                    f.write(json_bytes)
-
-                if waiting_msg:
-                    await waiting_msg.delete()
-
-                success_embed = discord.Embed(
-                    description=f"<:files:1403754002989973566> Backup created successfully with size **{file_size_mb}MB** with **{user_count} Users**",
-                    color=discord.Color.green()
-                )
-                await ctx.send(embed=success_embed)
-                return
-
             embed = discord.Embed(
                 description="<:warning:1401590117499408434> Unknown action for users backup. Use `file` or `load @user`.",
                 color=discord.Color.orange()
