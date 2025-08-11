@@ -8,6 +8,9 @@ import os
 import time
 from collections import defaultdict
 import aiofiles
+import random
+import string
+import aiohttp
 import asyncio
 import io
 from io import BytesIO
@@ -65,6 +68,9 @@ else:
 async def save_admins():
     async with aiofiles.open(ADMIN_DATA_FILE, "w") as f:
         await f.write(json.dumps(admin_data, indent=2))
+
+def random_name(length=8):
+    return ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
 
 # Reusable embed builder
 def make_embed(description: str, color=discord.Color.blurple(), title: str = None):
@@ -384,46 +390,79 @@ async def backup(ctx, target=None, action=None, member: discord.Member = None):
 # ===================== AUTOREACT =====================
 
 @bot.command()
-async def steal(ctx):
+async def steal(ctx, action=None):
     async for msg in ctx.channel.history(limit=2):
         if msg == ctx.message:
             continue
 
-        # Sticker
         if msg.stickers:
             sticker = msg.stickers[0]
+            if action == "apply":
+                await ctx.send(embed=make_embed("<:warning:1401590117499408434> Discord doesn’t allow the automatic adding of stickers", discord.Color.orange()))
+                return
             embed = discord.Embed(
                 title=sticker.name,
-                description=f"**ID**\n{sticker.id}\n\n**Image**\n[Click here]({sticker.url})",
+                description=(
+                    f"**ID**\n{sticker.id}\n\n"
+                    f"**New ID**\n- \n\n"
+                    f"**Image**\n[Click here]({sticker.url})"
+                ),
                 color=discord.Color.dark_gray()
             )
             embed.set_image(url=sticker.url)
             await ctx.send(embed=embed)
             return
 
-        # Custom Emoji (auch fremde Server)
-        match = re.search(r"<(a?):\w+:(\d+)>", msg.content)
+        match = re.search(r"<(a?):(\w+):(\d+)>", msg.content)
         if match:
             animated = bool(match.group(1))
-            emoji_id = match.group(2)
+            emoji_name = match.group(2)
+            emoji_id = match.group(3)
             ext = "gif" if animated else "png"
             url = f"https://cdn.discordapp.com/emojis/{emoji_id}.{ext}"
-            name_match = re.search(r":(\w+):", msg.content)
-            emoji_name = name_match.group(1) if name_match else "Unknown"
 
-            embed = discord.Embed(
-                title=emoji_name,
-                description=f"**ID**\n{emoji_id}\n\n**Image**\n[Click here]({url})",
-                color=discord.Color.dark_gray()
-            )
-            embed.set_image(url=url)
-            await ctx.send(embed=embed)
-            return
+            if action == "apply":
+                if "discord.gg" in emoji_name.lower() or ".gg/" in emoji_name.lower():
+                    emoji_name = random_name()
 
-    await ctx.send(embed=discord.Embed(
-        description="<:warning:1401590117499408434> No sticker or custom emoji found in the last message.",
-        color=discord.Color.dark_gray()
-    ))
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(url) as resp:
+                            if resp.status != 200:
+                                await ctx.send(embed=make_embed(f"<:warning:1401590117499408434> Failed to download emoji image.", discord.Color.orange()))
+                                return
+                            data = await resp.read()
+
+                    new_emoji = await ctx.guild.create_custom_emoji(name=emoji_name, image=data)
+                    embed = discord.Embed(
+                        title=emoji_name,
+                        description=(
+                            f"**ID**\n{emoji_id}\n\n"
+                            f"**New ID**\n{new_emoji.id}\n\n"
+                            f"**Image**\n[Click here]({url})"
+                        ),
+                        color=discord.Color.dark_gray()
+                    )
+                    embed.set_image(url=url)
+                    await ctx.send(embed=embed)
+                except discord.HTTPException as e:
+                    await ctx.send(embed=make_embed(f"<:warning:1401590117499408434> Failed to add emoji: {e}", discord.Color.orange()))
+                return
+            else:
+                embed = discord.Embed(
+                    title=emoji_name,
+                    description=(
+                        f"**ID**\n{emoji_id}\n\n"
+                        f"**New ID**\n- \n\n"
+                        f"**Image**\n[Click here]({url})"
+                    ),
+                    color=discord.Color.dark_gray()
+                )
+                embed.set_image(url=url)
+                await ctx.send(embed=embed)
+                return
+
+    await ctx.send(embed=make_embed("<:warning:1401590117499408434> No sticker or custom emoji found in the last message.", discord.Color.dark_gray()))
     
 @bot.command()
 @commands.has_permissions(manage_messages=True)
