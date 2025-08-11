@@ -388,7 +388,7 @@ async def steal(ctx):
         if msg == ctx.message:
             continue
 
-        # Sticker-Check
+        # Sticker
         if msg.stickers:
             sticker = msg.stickers[0]
             embed = discord.Embed(
@@ -400,21 +400,25 @@ async def steal(ctx):
             await ctx.send(embed=embed)
             return
 
-        # Emoji-Check via Regex für Custom Emojis
-        custom_emojis = re.findall(r"<a?:\w+:(\d+)>", msg.content)
-        if custom_emojis:
-            emoji_id = int(custom_emojis[0])
-            emoji = await ctx.guild.fetch_emoji(emoji_id)
+        # Custom Emoji (auch fremde Server)
+        match = re.search(r"<(a?):\w+:(\d+)>", msg.content)
+        if match:
+            animated = bool(match.group(1))
+            emoji_id = match.group(2)
+            ext = "gif" if animated else "png"
+            url = f"https://cdn.discordapp.com/emojis/{emoji_id}.{ext}"
+            name_match = re.search(r":(\w+):", msg.content)
+            emoji_name = name_match.group(1) if name_match else "Unknown"
+
             embed = discord.Embed(
-                title=emoji.name,
-                description=f"**ID**\n{emoji.id}\n\n**Image**\n[Click here]({emoji.url})",
+                title=emoji_name,
+                description=f"**ID**\n{emoji_id}\n\n**Image**\n[Click here]({url})",
                 color=discord.Color.dark_gray()
             )
-            embed.set_image(url=emoji.url)
+            embed.set_image(url=url)
             await ctx.send(embed=embed)
             return
 
-    # Nichts gefunden
     await ctx.send(embed=discord.Embed(
         description="<:warning:1401590117499408434> No sticker or custom emoji found in the last message.",
         color=discord.Color.dark_gray()
