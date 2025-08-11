@@ -159,9 +159,30 @@ async def backup(ctx, target=None, action=None, member: discord.Member = None):
                 "Syntax : `$backup users load <@user>`\n"
                 "Syntax : `$backup server`\n"
                 "Syntax : `$backup server file`\n"
-                "Syntax : `$backup server load`"
+                "Syntax : `$backup server load`\n"
+                "Syntax : `$backup status`"
             ),
             color=discord.Color.blurple()
+        )
+        await ctx.send(embed=embed)
+        return
+
+    if target.lower() == "status":
+        server_backup_exists = os.path.exists("server_backup.json")
+        user_backup_exists = os.path.exists("user_backups.json")
+
+        server_status = "<:enabled:1404451260052144228>" if server_backup_exists else "<:disabled:1404450164118126683>"
+        user_status = "<:enabled:1404451260052144228>" if user_backup_exists else "<:disabled:1404450164118126683>"
+
+        overall_status = "Active" if server_backup_exists or user_backup_exists else "Inactive"
+
+        embed = discord.Embed(
+            description=(
+                f"Backups are **{overall_status}** for this server\n\n"
+                f"**Server Backup** : {server_status}\n"
+                f"**User Backup** : {user_status}"
+            ),
+            color=discord.Color.greyple()
         )
         await ctx.send(embed=embed)
         return
@@ -233,6 +254,7 @@ async def backup(ctx, target=None, action=None, member: discord.Member = None):
             ))
         else:
             await ctx.send(embed=make_embed("<:warning:1401590117499408434> Unknown action for users backup.", discord.Color.orange()))
+
     elif target.lower() == "server":
         if action is None or action.lower() == "backup":
             guild = ctx.guild
@@ -355,8 +377,9 @@ async def backup(ctx, target=None, action=None, member: discord.Member = None):
             await ctx.send(embed=make_embed("<:Ok:1401589649088057425> Server restored", discord.Color.green()))
         else:
             await ctx.send(embed=make_embed("<:warning:1401590117499408434> Unknown action for server backup.", discord.Color.orange()))
+
     else:
-        await ctx.send(embed=make_embed("<:warning:1401590117499408434> Unknown target. Use `users` or `server`.", discord.Color.orange()))
+        await ctx.send(embed=make_embed("<:warning:1401590117499408434> Unknown target. Use `users`, `server` or `status`.", discord.Color.orange()))
 # ===================== AUTOREACT =====================
 @bot.command()
 @commands.has_permissions(manage_messages=True)
