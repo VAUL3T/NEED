@@ -1,5 +1,6 @@
 # bot.py
 import discord
+import re
 from discord.ext import commands
 from discord.ext.commands import MissingPermissions
 import json
