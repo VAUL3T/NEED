@@ -384,7 +384,7 @@ async def backup(ctx, target=None, action=None, member: discord.Member = None):
 
 @bot.command()
 async def steal(ctx):
-    async for msg in ctx.channel.history(limit=2):  # Holt aktuelle & vorherige Nachricht
+    async for msg in ctx.channel.history(limit=2):
         if msg == ctx.message:
             continue
 
@@ -400,18 +400,21 @@ async def steal(ctx):
             await ctx.send(embed=embed)
             return
 
-        # Emoji-Check (Custom Emojis, kein Unicode)
-        if msg.content:
-            for emoji in msg.emojis:
-                embed = discord.Embed(
-                    title=emoji.name,
-                    description=f"**ID**\n{emoji.id}\n\n**Image**\n[Click here]({emoji.url})",
-                    color=discord.Color.dark_gray()
-                )
-                embed.set_image(url=emoji.url)
-                await ctx.send(embed=embed)
-                return
+        # Emoji-Check via Regex für Custom Emojis
+        custom_emojis = re.findall(r"<a?:\w+:(\d+)>", msg.content)
+        if custom_emojis:
+            emoji_id = int(custom_emojis[0])
+            emoji = await ctx.guild.fetch_emoji(emoji_id)
+            embed = discord.Embed(
+                title=emoji.name,
+                description=f"**ID**\n{emoji.id}\n\n**Image**\n[Click here]({emoji.url})",
+                color=discord.Color.dark_gray()
+            )
+            embed.set_image(url=emoji.url)
+            await ctx.send(embed=embed)
+            return
 
+    # Nichts gefunden
     await ctx.send(embed=discord.Embed(
         description="<:warning:1401590117499408434> No sticker or custom emoji found in the last message.",
         color=discord.Color.dark_gray()
