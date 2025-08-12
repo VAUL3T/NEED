@@ -88,9 +88,9 @@ message_history = defaultdict(list)  # user_id -> list of timestamps (float)
 async def globally_whitelist_guilds(ctx):
     return ctx.guild and ctx.guild.id in WHITELISTED_GUILDS
 
-@bot.tree.command(name="echo", description="Need echos you (now with VC options)")
+@bot.tree.command(name="echo", description="Need echos you")
 @app_commands.describe(
-    text="Text to send",
+    text="Optional text to send",
     attachment="Optional attachment (image/file)",
     reply="Optional message ID to reply to",
     vc_join="Optional VC channel to join",
@@ -100,7 +100,7 @@ async def globally_whitelist_guilds(ctx):
 @app_commands.checks.has_permissions(manage_messages=True)
 async def echo(
     interaction: discord.Interaction,
-    text: str,
+    text: str = None,
     attachment: discord.Attachment = None,
     reply: str = None,
     vc_join: discord.VoiceChannel = None,
@@ -135,20 +135,21 @@ async def echo(
             )
             return
 
-    # Nachricht / Reply senden
-    if reply:
-        try:
-            msg_id = int(reply)
-            message = await interaction.channel.fetch_message(msg_id)
-            await message.reply(content=text, files=files if files else None)
-        except (ValueError, discord.NotFound):
-            await interaction.response.send_message(
-                embed=make_embed("<:warning:1401590117499408434> Invalid message ID.", discord.Color.orange()),
-                ephemeral=True
-            )
-            return
-    else:
-        await interaction.channel.send(content=text, files=files if files else None)
+    # Nachricht oder Reply senden (nur wenn text oder file vorhanden)
+    if text or files:
+        if reply:
+            try:
+                msg_id = int(reply)
+                message = await interaction.channel.fetch_message(msg_id)
+                await message.reply(content=text or "", files=files if files else None)
+            except (ValueError, discord.NotFound):
+                await interaction.response.send_message(
+                    embed=make_embed("<:warning:1401590117499408434> Invalid message ID.", discord.Color.orange()),
+                    ephemeral=True
+                )
+                return
+        else:
+            await interaction.channel.send(content=text or "", files=files if files else None)
 
     # VC Join
     if vc_join:
