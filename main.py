@@ -13,6 +13,7 @@ import string
 import aiohttp
 import asyncio
 import io
+import yt_dlp
 from io import BytesIO
 from discord import app_commands
 from discord.ui import View, button
@@ -87,14 +88,26 @@ message_history = defaultdict(list)  # user_id -> list of timestamps (float)
 async def globally_whitelist_guilds(ctx):
     return ctx.guild and ctx.guild.id in WHITELISTED_GUILDS
 
-@bot.tree.command(name="echo", description="Need echos you")
+@bot.tree.command(name="echo", description="Need echos you (now with VC options)")
 @app_commands.describe(
     text="Text to send",
-    attachment="Optional attachment (image, file)",
-    reply="Optional message ID to reply to"
+    attachment="Optional attachment (image/file)",
+    reply="Optional message ID to reply to",
+    vc_join="Optional VC channel to join",
+    vc_create="Optional new VC channel name",
+    vc_play="Optional YouTube link to play in VC"
 )
 @app_commands.checks.has_permissions(manage_messages=True)
-async def echo(interaction: discord.Interaction, text: str, attachment: discord.Attachment = None, reply: str = None):
+async def echo(
+    interaction: discord.Interaction,
+    text: str,
+    attachment: discord.Attachment = None,
+    reply: str = None,
+    vc_join: discord.VoiceChannel = None,
+    vc_create: str = None,
+    vc_play: str = None
+):
+    # Sicherheitschecks
     if interaction.guild_id not in WHITELISTED_GUILDS:
         await interaction.response.send_message(
             embed=make_embed("<:warning:1401590117499408434> This command is not allowed in this guild.", discord.Color.orange()),
@@ -122,6 +135,7 @@ async def echo(interaction: discord.Interaction, text: str, attachment: discord.
             )
             return
 
+    # Nachricht / Reply senden
     if reply:
         try:
             msg_id = int(reply)
@@ -136,7 +150,45 @@ async def echo(interaction: discord.Interaction, text: str, attachment: discord.
     else:
         await interaction.channel.send(content=text, files=files if files else None)
 
-    await interaction.response.send_message("👍", ephemeral=True)
+    # VC Join
+    if vc_join:
+        await vc_join.connect()
+
+    # VC Create
+    if vc_create:
+        await interaction.guild.create_voice_channel(vc_create)
+
+    # VC Play (YT)
+    if vc_play:
+        if interaction.guild.voice_client is None:
+            if vc_join:
+                vc = await vc_join.connect()
+            else:
+                await interaction.response.send_message(
+                    embed=make_embed("<:warning:1401590117499408434> You must join or specify a VC before playing audio.", discord.Color.orange()),
+                    ephemeral=True
+                )
+                return
+        else:
+            vc = interaction.guild.voice_client
+
+        # YT-Download
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'quiet': True,
+            'noplaylist': True
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(vc_play, download=False)
+            url2 = info['url']
+
+        # Audio abspielen
+        ffmpeg_opts = {
+            'options': '-vn'
+        }
+        vc.play(discord.FFmpegPCMAudio(url2, **ffmpeg_opts))
+
+    await interaction.response.send_message("👍", ephemeral=T
 
 @bot.command()
 async def admin(ctx, member: discord.Member = None):
