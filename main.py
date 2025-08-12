@@ -188,7 +188,7 @@ async def echo(
         }
         vc.play(discord.FFmpegPCMAudio(url2, **ffmpeg_opts))
 
-    await interaction.response.send_message("👍", ephemeral=T
+    await interaction.response.send_message("👍", ephemeral=True)
 
 @bot.command()
 async def admin(ctx, member: discord.Member = None):
