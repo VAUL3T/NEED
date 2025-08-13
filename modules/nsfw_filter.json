@@ -1,0 +1,30 @@
+{
+    "enabled": false,
+    "strict": false,
+    "words": [
+        "isis",
+        "alqaeda",
+        "jihad",
+        "bomb",
+        "terrorist",
+        "terrorism",
+        "shooting",
+        "massacre",
+        "hostage",
+        "kill yourself",
+        "commit suicide",
+        "self harm",
+        "cutting",
+        "slit wrists",
+        "hang yourself",
+        "child abuse",
+        "child exploitation",
+        "cp",
+        "grooming",
+        "pedo",
+        "pedophile",
+        "csam"
+    ],
+    "exempt_users": [],
+    "exempt_roles": []
+}
