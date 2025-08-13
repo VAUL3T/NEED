@@ -30,6 +30,7 @@ bot = commands.Bot(command_prefix="$", intents=intents)
 WHITELISTED_GUILDS = [1345476135487672350]
 DATA_FILE = "1345476135487672350.json"
 BACKUP_FILE = "user_backups.json"
+NSFW_FILTER_FILE = "modules/nsfw_filter.json"
 
 @bot.event
 async def on_ready():
@@ -50,6 +51,14 @@ if os.path.exists(DATA_FILE):
         auto_react_data = {}
 else:
     auto_react_data = {}
+
+def load_filter():
+    with open(NSFW_FILTER_FILE, "r") as f:
+        return json.load(f)
+
+def save_filter(data):
+    with open(NSFW_FILTER_FILE, "w") as f:
+        json.dump(data, f, indent=4)
 
 # Async save
 async def save_data():
