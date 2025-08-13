@@ -883,16 +883,21 @@ async def forcenickname(ctx, *args):
 @commands.has_permissions(manage_messages=True, manage_guild=True)
 async def nsfw(ctx, sub=None, action=None, *, value=None):
     if not os.path.exists(NSFW_FILTER_FILE):
-        await ctx.send("<:files:1403754002989973566> no file detected **module can’t operate**")
+        embed = discord.Embed(
+            description="<:files:1403754002989973566> no file detected **module can’t operate**",
+            color=discord.Color.dark_grey()
+        )
+        await ctx.send(embed=embed)
         return
 
-    data = load_filter()
+    data = load_filter()  # Lade JSON
 
-    if sub is None:
+    # Syntax-Embed
+    def send_syntax():
         embed = discord.Embed(
             title="Command: nsfw filter",
             description=(
-                "Syntax : `$nsfw filter on do:<action>`\n"
+                "Syntax : `$nsfw filter on do:<mute/timeout/kick/ban>`\n"
                 "Syntax : `$nsfw filter off`\n"
                 "Syntax : `$nsfw filter add <word>`\n"
                 "Syntax : `$nsfw filter remove <word>`\n"
@@ -903,66 +908,134 @@ async def nsfw(ctx, sub=None, action=None, *, value=None):
             ),
             color=discord.Color.blurple()
         )
+        return embed
+
+    if not sub:
+        await ctx.send(embed=send_syntax())
+        return
+
+    sub = sub.lower()
+
+    # CONFIG STATUS
+    if sub == "config":
+        enabled_icon = "<:enabled:1404451260052144228>" if data.get("enabled") else "<:disabled:1404450164118126683>"
+        strict_icon = "<:enabled:1404451260052144228>" if data.get("strict") else "<:disabled:1404450164118126683>"
+
+        exempt_roles_count = len(data.get("exempt_roles", []))
+        exempt_users_count = len(data.get("exempt_users", []))
+        filtered_words_count = len(data.get("words", []))
+
+        role_exemption_icon = "<:enabled:1404451260052144228>" if exempt_roles_count > 0 else "<:disabled:1404450164118126683>"
+        user_exemption_icon = "<:enabled:1404451260052144228>" if exempt_users_count > 0 else "<:disabled:1404450164118126683>"
+
+        embed = discord.Embed(
+            description=(
+                f"NSFW filter is **{'enabled' if data.get('enabled') else 'disabled'}** in this server\n\n"
+                f"**Strict Filter** : {strict_icon}\n"
+                f"**Role exemption** : {role_exemption_icon}\n"
+                f"**User exemption** : {user_exemption_icon}\n"
+                f"**Exempted Roles** : {exempt_roles_count}\n"
+                f"**Exempted Users** : {exempt_users_count}\n"
+                f"**Filtered Words** : {filtered_words_count}\n"
+                f"**Punishment** : {data.get('action','mute')}"
+            ),
+            color=discord.Color.dark_grey()
+        )
         await ctx.send(embed=embed)
         return
 
     # FILTER COMMANDS
-    if sub.lower() == "filter":
-        # Enable/Disable
+    if sub == "filter":
+        # Enable
         if action and action.lower() == "on":
-            # Prüfe optional action: mute/kick/ban/timeout
             punishment = "mute"
             if value:
                 val = value.lower()
                 if val in ["mute", "kick", "ban", "timeout"]:
                     punishment = val
                 else:
-                    await ctx.send(f"<:warning:1401590117499408434> {ctx.author.mention} Your **punishment** has to be **mute**, **kick**, **timeout** or **ban**")
+                    embed = discord.Embed(
+                        description=f"<:warning:1401590117499408434> {ctx.author.mention} Your **punishment** has to be **mute**, **kick**, **timeout** or **ban**",
+                        color=discord.Color.orange()
+                    )
+                    await ctx.send(embed=embed)
                     return
             data["enabled"] = True
             data["action"] = punishment
             save_filter(data)
-            await ctx.send(f"<:Ok:1401589649088057425> NSFW filter enabled — action: **{punishment}**")
+            embed = discord.Embed(
+                description=f"<:Ok:1401589649088057425> NSFW filter enabled — action: **{punishment}**",
+                color=discord.Color.green()
+            )
+            await ctx.send(embed=embed)
             return
 
+        # Disable
         if action and action.lower() == "off":
             data["enabled"] = False
             save_filter(data)
-            await ctx.send("<:error:1401589697477742742> **NSFW filter disabled**")
+            embed = discord.Embed(
+                description="<:error:1401589697477742742> **NSFW filter disabled**",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
             return
 
+        # Add word
         if action and action.lower() == "add" and value:
             word = value.lower()
             if word not in data["words"]:
                 data["words"].append(word)
                 save_filter(data)
-                await ctx.send(f"<:Ok:1401589649088057425> {ctx.author.mention} Added `'{word}'` to **filtered list**")
+                embed = discord.Embed(
+                    description=f"<:Ok:1401589649088057425> {ctx.author.mention} Added `'{word}'` to **filtered list**",
+                    color=discord.Color.green()
+                )
+                await ctx.send(embed=embed)
             else:
-                await ctx.send(f"<:error:1401589697477742742> `{word}` already in **filtered list**")
+                embed = discord.Embed(
+                    description=f"<:error:1401589697477742742> `{word}` already in **filtered list**",
+                    color=discord.Color.red()
+                )
+                await ctx.send(embed=embed)
             return
 
+        # Remove word
         if action and action.lower() == "remove" and value:
             word = value.lower()
             if word in data["words"]:
                 data["words"].remove(word)
                 save_filter(data)
-                await ctx.send(f"<:error:1401589697477742742> {ctx.author.mention} Removed `{word}` from **filtered list**")
+                embed = discord.Embed(
+                    description=f"<:error:1401589697477742742> {ctx.author.mention} Removed `{word}` from **filtered list**",
+                    color=discord.Color.green()
+                )
+                await ctx.send(embed=embed)
             else:
-                await ctx.send(f"<:error:1401589697477742742> `{word}` not in **filtered list**")
+                embed = discord.Embed(
+                    description=f"<:error:1401589697477742742> `{word}` not in **filtered list**",
+                    color=discord.Color.red()
+                )
+                await ctx.send(embed=embed)
             return
 
+        # List words
         if action and action.lower() == "list":
             words = data["words"]
             if not words:
-                await ctx.send("<:error:1401589697477742742> No filtered words.")
+                embed = discord.Embed(
+                    description="<:error:1401589697477742742> File is empty.",
+                    color=discord.Color.dark_grey()
+                )
+                await ctx.send(embed=embed)
                 return
+
             per_page = 5
             pages = [words[i:i+per_page] for i in range(0, len(words), per_page)]
             page_index = 0
 
             def get_embed():
                 embed = discord.Embed(
-                    title="Filtered Words",
                     description="\n".join(f"{i+1 + page_index*per_page}. {w}" for i, w in enumerate(pages[page_index])),
                     color=discord.Color.dark_grey()
                 )
@@ -994,15 +1067,19 @@ async def nsfw(ctx, sub=None, action=None, *, value=None):
             await ctx.send(embed=get_embed(), view=WordListView())
             return
 
+        # Strict toggle
         if action and action.lower() == "strict":
             data["strict"] = not data.get("strict", False)
             save_filter(data)
-            if data["strict"]:
-                await ctx.send("<:Ok:1401589649088057425> **NSFW filter** is now set to - **strict**")
-            else:
-                await ctx.send("<:Ok:1401589649088057425> **NSFW filter** is set to - **standart**")
+            state = "strict" if data["strict"] else "standard"
+            embed = discord.Embed(
+                description=f"<:Ok:1401589649088057425> **NSFW filter** is now set to - **{state}**",
+                color=discord.Color.green()
+            )
+            await ctx.send(embed=embed)
             return
 
+        # Exempt users/roles
         if action and action.lower() == "exempt" and ctx.message.mentions:
             target = ctx.message.mentions[0]
             if isinstance(target, discord.Member):
@@ -1012,37 +1089,16 @@ async def nsfw(ctx, sub=None, action=None, *, value=None):
                 if target.id not in data.get("exempt_roles", []):
                     data["exempt_roles"].append(target.id)
             save_filter(data)
-            await ctx.send(f"<:Ok:1401589649088057425> {target.mention} exempted from NSFW filter")
+            embed = discord.Embed(
+                description=f"<:Ok:1401589649088057425> {target.mention} exempted from NSFW filter",
+                color=discord.Color.green()
+            )
+            await ctx.send(embed=embed)
             return
 
-    # CONFIG STATUS
-    if sub.lower() == "config":
-        enabled_icon = "<:enabled:1404451260052144228>" if data.get("enabled") else "<:disabled:1404450164118126683>"
-        strict_icon = "<:enabled:1404451260052144228>" if data.get("strict") else "<:disabled:1404450164118126683>"
-
-        exempt_roles_count = len(data.get("exempt_roles", []))
-        exempt_users_count = len(data.get("exempt_users", []))
-        filtered_words_count = len(data.get("words", []))
-
-        role_exemption_icon = "<:enabled:1404451260052144228>" if exempt_roles_count > 0 else "<:disabled:1404450164118126683>"
-        user_exemption_icon = "<:enabled:1404451260052144228>" if exempt_users_count > 0 else "<:disabled:1404450164118126683>"
-
-        embed = discord.Embed(
-            title="Settings",
-            description=(
-                f"NSFW filter is **{'enabled' if data.get('enabled') else 'disabled'}** in this server\n\n"
-                f"**Strict Filter** : {strict_icon}\n"
-                f"**Role exemption** : {role_exemption_icon}\n"
-                f"**User exemption** : {user_exemption_icon}\n"
-                f"**Exempted Roles** : {exempt_roles_count}\n"
-                f"**Exempted Users** : {exempt_users_count}\n"
-                f"**Filtered Words** : {filtered_words_count}"
-            ),
-            color=discord.Color.dark_grey()
-        )
-        await ctx.send(embed=embed)
-        return
-
+    # Ungültiger Subcommand → Syntax-Embed
+    await ctx.send(embed=send_syntax())
+    
 @bot.command()
 @commands.has_permissions(manage_messages=True, manage_guild=True)
 async def autoremove(ctx, *args):
