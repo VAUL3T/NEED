@@ -1,6 +1,7 @@
 {
     "enabled": false,
     "strict": false,
+    "punishment": "timeout",
     "words": [
         "isis",
         "alqaeda",
