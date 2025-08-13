@@ -881,7 +881,7 @@ async def forcenickname(ctx, *args):
 # ===================== AUTOREMOVE =====================
 @bot.command()
 @commands.has_permissions(manage_messages=True, manage_guild=True)
-async def nsfw_cmd(ctx, sub=None, action=None, *, value=None):
+async def nsfw(ctx, sub=None, action=None, *, value=None):
     data = load_filter()
 
     # Wenn File fehlt
