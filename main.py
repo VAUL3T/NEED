@@ -892,14 +892,13 @@ async def nsfw(ctx, sub=None, action=None, *, value=None):
         embed = discord.Embed(
             title="Command: nsfw filter",
             description=(
-                "Syntax : `$nsfw filter on`\n"
+                "Syntax : `$nsfw filter on do:<action>`\n"
                 "Syntax : `$nsfw filter off`\n"
                 "Syntax : `$nsfw filter add <word>`\n"
                 "Syntax : `$nsfw filter remove <word>`\n"
                 "Syntax : `$nsfw filter list`\n"
                 "Syntax : `$nsfw filter strict`\n"
                 "Syntax : `$nsfw filter exempt @<user>/<role>`\n"
-                "Syntax : `$nsfw filter on do:<mute/timeout/kick/ban>`\n"
                 "Syntax : `$nsfw config`"
             ),
             color=discord.Color.blurple()
@@ -955,7 +954,7 @@ async def nsfw(ctx, sub=None, action=None, *, value=None):
         if action and action.lower() == "list":
             words = data["words"]
             if not words:
-                await ctx.send("📭 No filtered words.")
+                await ctx.send("<:error:1401589697477742742> No filtered words.")
                 return
             per_page = 5
             pages = [words[i:i+per_page] for i in range(0, len(words), per_page)]
@@ -963,9 +962,9 @@ async def nsfw(ctx, sub=None, action=None, *, value=None):
 
             def get_embed():
                 embed = discord.Embed(
-                    title="📜 Filtered Words",
+                    title="Filtered Words",
                     description="\n".join(f"{i+1 + page_index*per_page}. {w}" for i, w in enumerate(pages[page_index])),
-                    color=discord.Color.blurple()
+                    color=discord.Color.dark_grey()
                 )
                 embed.set_footer(text=f"Page {page_index+1}/{len(pages)}")
                 return embed
@@ -1039,7 +1038,7 @@ async def nsfw(ctx, sub=None, action=None, *, value=None):
                 f"**Exempted Users** : {exempt_users_count}\n"
                 f"**Filtered Words** : {filtered_words_count}"
             ),
-            color=discord.Color.blurple()
+            color=discord.Color.dark_grey()
         )
         await ctx.send(embed=embed)
         return
