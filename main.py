@@ -881,7 +881,7 @@ async def forcenickname(ctx, *args):
 # ===================== AUTOREMOVE =====================
 @bot.command()
 @commands.has_permissions(manage_messages=True, manage_guild=True)
-async def nsfw_cmd(ctx, sub=None, action=None, *, value=None):
+async def nsfw(ctx, sub=None, action=None, *, value=None):
     if not os.path.exists(NSFW_FILTER_FILE):
         await ctx.send("<:files:1403754002989973566> no file detected **module can’t operate**")
         return
