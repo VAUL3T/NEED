@@ -234,105 +234,117 @@ async def admin(ctx, member: discord.Member = None):
         await save_admins()
         await ctx.send(embed=make_embed(f"<:Ok:1401589649088057425> {ctx.author.mention} **{username}** is now an admin", discord.Color.green()))
 
-@bot.command(aliases=["t"])
+@commands.command(aliases=["t"])
 async def tran(ctx, sub=None, channel: discord.TextChannel = None):
-    data = load_tran_data()
+    try:
+        data = load_tran_data()
 
-    if sub is None:
-        embed = discord.Embed(
-            title="Command: $tran",
-            description=(
-                "`$tran setup <#channel>` - Set the board channel\n"
-                "`$tran <reply to message>` - Post message to board\n"
-                "`$t` ist Alias für `$tran`\n"
-                "Optional: `$t ping` = Ping @here, `$t post` = Ohne Ping"
-            ),
-            color=discord.Color.dark_grey()
-        )
-        await ctx.send(embed=embed)
-        return
-
-    if sub.lower() == "setup":
-        if channel is None:
+        if sub is None:
             embed = discord.Embed(
-                description="<:warning:1401590117499408434> Please mention a valid channel!",
+                title="Command: $tran",
+                description=(
+                    "`$tran setup <#channel>` - set the board channel\n"
+                    "`$tran <reply to message>` - post message to board\n"
+                    "`$t` alias for `$tran`\n"
+                    "`$t ping` to ping @here, `$t post` = normal post"
+                ),
+                color=discord.Color.blurple()
+            )
+            await ctx.send(embed=embed)
+            return
+
+        if sub.lower() == "setup":
+            if channel is None:
+                embed = discord.Embed(
+                    description="<:warning:1401590117499408434> Please mention a valid channel!",
+                    color=discord.Color.dark_grey()
+                )
+                await ctx.send(embed=embed)
+                return
+            data[str(ctx.guild.id)] = channel.id
+            save_tran_data(data)
+            embed = discord.Embed(
+                description=f"<:Ok:1401589649088057425> Tranny board channel set to {channel.mention}",
+                color=discord.Color.dark_grey()
+            )
+            await ctx.send(embed=embed)
+            await ctx.message.add_reaction("👍")
+            return
+
+        if ctx.message.reference is None:
+            embed = discord.Embed(
+                description="<:warning:1401590117499408434> You must reply to a message to post it to the board.",
                 color=discord.Color.dark_grey()
             )
             await ctx.send(embed=embed)
             return
 
-        data[str(ctx.guild.id)] = channel.id
-        save_tran_data(data)
-        embed = discord.Embed(
-            description=f"<:Ok:1401589649088057425> Tranny board channel set to {channel.mention}",
-            color=discord.Color.dark_grey()
-        )
-        await ctx.send(embed=embed)
-        return
+        board_channel_id = data.get(str(ctx.guild.id))
+        if not board_channel_id:
+            embed = discord.Embed(
+                description="<:warning:1401590117499408434> No board channel set! Use `$tran setup <#channel>`",
+                color=discord.Color.dark_grey()
+            )
+            await ctx.send(embed=embed)
+            return
 
-    if ctx.message.reference is None:
-        embed = discord.Embed(
-            description="<:warning:1401590117499408434> You must reply to a message to post it to the board.",
-            color=discord.Color.dark_grey()
-        )
-        await ctx.send(embed=embed)
-        return
+        board_channel = ctx.guild.get_channel(board_channel_id)
+        if board_channel is None:
+            embed = discord.Embed(
+                description="<:warning:1401590117499408434> Board channel not found!",
+                color=discord.Color.dark_grey()
+            )
+            await ctx.send(embed=embed)
+            return
 
-    board_channel_id = data.get(str(ctx.guild.id))
-    if not board_channel_id:
-        embed = discord.Embed(
-            description="<:warning:1401590117499408434> No board channel set! Use `$tran setup <#channel>`",
-            color=discord.Color.dark_grey()
-        )
-        await ctx.send(embed=embed)
-        return
-
-    board_channel = ctx.guild.get_channel(board_channel_id)
-    if board_channel is None:
-        embed = discord.Embed(
-            description="<:warning:1401590117499408434> Board channel not found!",
-            color=discord.Color.dark_grey()
-        )
-        await ctx.send(embed=embed)
-        return
-
-    try:
-        replied_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
-    except:
-        embed = discord.Embed(
-            description="<:warning:1401590117499408434> Could not find the replied message!",
-            color=discord.Color.dark_grey()
-        )
-        await ctx.send(embed=embed)
-        return
-
-    param = sub.lower()
-    do_ping = (param == "ping")
-
-    # -------- Embed Aufbau mit Emoji, Message, Channel und Jump-Link --------
-    embed = discord.Embed(
-        description=(
-            f"<:Trann:1405954489432932442>\n"
-            f"**{replied_msg.content}**\n\n"
-            f"{replied_msg.channel.mention}\n"
-            f"[Jump to message]({replied_msg.jump_url})"
-        ),
-        color=discord.Color.dark_grey()
-    )
-
-    await board_channel.send(embed=embed)
-
-    try:
-        await ctx.message.add_reaction("👍")
-        await ctx.message.add_reaction("👎")
-    except:
-        pass
-
-    if do_ping:
-        ping_msg = await board_channel.send("@here")
-        await asyncio.sleep(5)
         try:
-            await ping_msg.delete()
+            replied_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
+        except:
+            embed = discord.Embed(
+                description="<:warning:1401590117499408434> Could not find the replied message!",
+                color=discord.Color.dark_grey()
+            )
+            await ctx.send(embed=embed)
+            return
+
+        param = sub.lower()
+        if param == "ping":
+            do_ping = True
+        elif param == "post":
+            do_ping = False
+        else:
+            embed = discord.Embed(
+                description="<:warning:1401590117499408434> Parameter must be `ping` or `post` (or use `setup`).",
+                color=discord.Color.dark_grey()
+            )
+            await ctx.send(embed=embed)
+            return
+
+        embed = discord.Embed(color=discord.Color.dark_grey())
+        embed.set_footer(text=f"{replied_msg.channel} • [Jump to message]({replied_msg.jump_url})")
+        embed.description = "<:Trann:1405954489432932442>\n"
+
+        if replied_msg.content:
+            embed.description += replied_msg.content
+        elif replied_msg.attachments:
+            embed.set_image(url=replied_msg.attachments[0].url)
+        else:
+            embed.description += "*No text or attachments*"
+
+        await board_channel.send(embed=embed)
+        await ctx.message.add_reaction("👍")
+
+        if do_ping:
+            ping_msg = await board_channel.send("@here")
+            await asyncio.sleep(5)
+            try:
+                await ping_msg.delete()
+            except:
+                pass
+
+    except Exception:
+        try:
+            await ctx.message.add_reaction("👎")
         except:
             pass
 
