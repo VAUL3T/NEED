@@ -234,23 +234,23 @@ async def admin(ctx, member: discord.Member = None):
         await save_admins()
         await ctx.send(embed=make_embed(f"<:Ok:1401589649088057425> {ctx.author.mention} **{username}** is now an admin", discord.Color.green()))
 
-@bot.command()
+@bot.command(aliases=["t"])
 async def tran(ctx, sub=None, channel: discord.TextChannel = None):
     data = load_tran_data()
 
+    # --------- SYNTAX EMBED ----------
     if sub is None:
         embed = discord.Embed(
             title="Command: $tran",
             description=(
-                "Syntax:\n"
-                "`$tran setup <#channel>` - set the board channel\n"
-                "`$tran <reply to message>` - post message to board\n"
-                "`$t` is alias for `$tran`\n"
-                "Optional: `$t ping` to ping @here, `$t post` normal post"
+                "`$tran setup <#channel>` - Set the board channel\n"
+                "`$tran <reply to message>` - Post message to board\n"
+                "`$t` ist Alias für `$tran`\n"
+                "Optional: `$t ping` = Ping @here, `$t post` = Ohne Ping"
             ),
-            color=discord.Color.blurple()
+            color=discord.Color.dark_grey()
         )
-        await ctx.send(embed=embed)
+        await ctx.send("<:warning:1401590117499408434>", embed=embed)
         return
 
     # --------- SETUP ----------
@@ -272,7 +272,7 @@ async def tran(ctx, sub=None, channel: discord.TextChannel = None):
         await ctx.send(embed=embed)
         return
 
-    # If sub is not setup, treat it as a reply command
+    # --------- CHECK REPLY ----------
     if ctx.message.reference is None:
         embed = discord.Embed(
             description="<:warning:1401590117499408434> You must reply to a message to post it to the board.",
@@ -299,7 +299,7 @@ async def tran(ctx, sub=None, channel: discord.TextChannel = None):
         await ctx.send(embed=embed)
         return
 
-    # Get replied message
+    # --------- GET REPLIED MESSAGE ----------
     try:
         replied_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
     except:
@@ -310,40 +310,42 @@ async def tran(ctx, sub=None, channel: discord.TextChannel = None):
         await ctx.send(embed=embed)
         return
 
-    # Determine ping option
+    # --------- PARAMETER HANDLING ----------
     param = sub.lower()
-    do_ping = False
-    if param == "ping":
-        do_ping = True
-    elif param == "post":
-        do_ping = False
-    elif param != "ping" and param != "post":
-        do_ping = False
+    if param not in ["ping", "post"]:
+        embed = discord.Embed(
+            description="<:warning:1401590117499408434> Parameter must be `ping` or `post`!",
+            color=discord.Color.dark_grey()
+        )
+        await ctx.send(embed=embed)
+        return
+    do_ping = (param == "ping")
 
-    # Construct embed for board
+    # --------- EMBED FOR BOARD ----------
     embed = discord.Embed(
-        description=f"**{replied_msg.content}**\n\n[Jump to message]({replied_msg.jump_url})",
+        description=f"**{replied_msg.content}**\n\n"
+                    f"[Jump to message]({replied_msg.jump_url})",
         color=discord.Color.dark_grey()
     )
 
-    # Send message with emoji outside the embed
-    await board_channel.send(f"<:Trann:1405954489432932442>", embed=embed)
+    # --------- SEND TO BOARD ----------
+    await board_channel.send("<:Trann:1405954489432932442>", embed=embed)
 
-    # React to command message with thumbs up and thumbs down
+    # --------- REACT TO COMMAND ----------
     try:
         await ctx.message.add_reaction("👍")
         await ctx.message.add_reaction("👎")
     except:
         pass
 
-    # Optional @here ping
+    # --------- OPTIONAL PING ----------
     if do_ping:
         ping_msg = await board_channel.send("@here")
         await asyncio.sleep(5)
         try:
             await ping_msg.delete()
         except:
-           
+            pass           
 
 class ConfirmView(View):
     def __init__(self, author):
