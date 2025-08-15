@@ -238,7 +238,6 @@ async def admin(ctx, member: discord.Member = None):
 async def tran(ctx, sub=None, channel: discord.TextChannel = None):
     data = load_tran_data()
 
-    # --------- SYNTAX EMBED ----------
     if sub is None:
         embed = discord.Embed(
             title="Command: $tran",
@@ -250,10 +249,9 @@ async def tran(ctx, sub=None, channel: discord.TextChannel = None):
             ),
             color=discord.Color.dark_grey()
         )
-        await ctx.send("<:warning:1401590117499408434>", embed=embed)
+        await ctx.send(embed=embed)
         return
 
-    # --------- SETUP ----------
     if sub.lower() == "setup":
         if channel is None:
             embed = discord.Embed(
@@ -272,7 +270,6 @@ async def tran(ctx, sub=None, channel: discord.TextChannel = None):
         await ctx.send(embed=embed)
         return
 
-    # --------- CHECK REPLY ----------
     if ctx.message.reference is None:
         embed = discord.Embed(
             description="<:warning:1401590117499408434> You must reply to a message to post it to the board.",
@@ -299,7 +296,6 @@ async def tran(ctx, sub=None, channel: discord.TextChannel = None):
         await ctx.send(embed=embed)
         return
 
-    # --------- GET REPLIED MESSAGE ----------
     try:
         replied_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
     except:
@@ -310,42 +306,35 @@ async def tran(ctx, sub=None, channel: discord.TextChannel = None):
         await ctx.send(embed=embed)
         return
 
-    # --------- PARAMETER HANDLING ----------
     param = sub.lower()
-    if param not in ["ping", "post"]:
-        embed = discord.Embed(
-            description="<:warning:1401590117499408434> Parameter must be `ping` or `post`!",
-            color=discord.Color.dark_grey()
-        )
-        await ctx.send(embed=embed)
-        return
     do_ping = (param == "ping")
 
-    # --------- EMBED FOR BOARD ----------
+    # -------- Embed Aufbau mit Emoji, Message, Channel und Jump-Link --------
     embed = discord.Embed(
-        description=f"**{replied_msg.content}**\n\n"
-                    f"[Jump to message]({replied_msg.jump_url})",
+        description=(
+            f"<:Trann:1405954489432932442>\n"
+            f"**{replied_msg.content}**\n\n"
+            f"{replied_msg.channel.mention}\n"
+            f"[Jump to message]({replied_msg.jump_url})"
+        ),
         color=discord.Color.dark_grey()
     )
 
-    # --------- SEND TO BOARD ----------
-    await board_channel.send("<:Trann:1405954489432932442>", embed=embed)
+    await board_channel.send(embed=embed)
 
-    # --------- REACT TO COMMAND ----------
     try:
         await ctx.message.add_reaction("👍")
         await ctx.message.add_reaction("👎")
     except:
         pass
 
-    # --------- OPTIONAL PING ----------
     if do_ping:
         ping_msg = await board_channel.send("@here")
         await asyncio.sleep(5)
         try:
             await ping_msg.delete()
         except:
-            pass           
+            pass
 
 class ConfirmView(View):
     def __init__(self, author):
