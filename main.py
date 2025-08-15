@@ -248,7 +248,7 @@ async def tran(ctx, sub=None, channel: discord.TextChannel = None):
                 "`$t` is alias for `$tran`\n"
                 "Optional: `$t ping` to ping @here, `$t post` normal post"
             ),
-            color=discord.Color.blurple()
+            color=0x0a0a0a
         )
         await ctx.send(embed=embed)
         return
@@ -258,7 +258,7 @@ async def tran(ctx, sub=None, channel: discord.TextChannel = None):
         if channel is None:
             embed = discord.Embed(
                 description="<:warning:1401590117499408434> Please mention a valid channel!",
-                color=discord.Color.dark_grey()
+                color=0x0a0a0a
             )
             await ctx.send(embed=embed)
             return
@@ -329,7 +329,7 @@ async def tran(ctx, sub=None, channel: discord.TextChannel = None):
             f"**#{replied_msg.channel}**\n"
             f"[Jump to message]({replied_msg.jump_url})"
         ),
-        color=discord.Color.dark_grey()
+        color=0x0a0a0a
     )
 
     # Send message
@@ -396,7 +396,7 @@ async def backup(ctx, target=None, action=None, member: discord.Member = None):
                 "Syntax : `$backup server load`\n"
                 "Syntax : `$backup status`"
             ),
-            color=discord.Color.blurple()
+            color=0x0a0a0a
         )
         await ctx.send(embed=embed)
         return
@@ -416,7 +416,7 @@ async def backup(ctx, target=None, action=None, member: discord.Member = None):
                 f"**Server Backup** : {server_status}\n"
                 f"**User Backup** : {user_status}"
             ),
-            color=discord.Color.greyple()
+            color=0x0a0a0a
         )
         await ctx.send(embed=embed)
         return
