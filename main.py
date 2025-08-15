@@ -243,8 +243,10 @@ async def tran(ctx, sub=None, channel: discord.TextChannel = None):
             title="Command: $tran",
             description=(
                 "Syntax:\n"
-                "`$tran setup <#channel>` \n"
-                "`$tran <reply to message>` \n"
+                "`$tran setup <#channel>` - set the board channel\n"
+                "`$tran <reply to message>` - post message to board\n"
+                "`$t` is alias for `$tran`\n"
+                "Optional: `$t ping` to ping @here, `$t post` normal post"
             ),
             color=discord.Color.blurple()
         )
@@ -316,22 +318,16 @@ async def tran(ctx, sub=None, channel: discord.TextChannel = None):
     elif param == "post":
         do_ping = False
     elif param != "ping" and param != "post":
-        # Default to just normal post if no valid sub
         do_ping = False
 
     # Construct embed for board
     embed = discord.Embed(
-        description=(
-            f"<:Trann:1405954489432932442>#{replied_msg.id}\n\n"
-            f"{replied_msg.author}: {replied_msg.content}\n\n"
-            f"#{replied_msg.channel}\n"
-            f"[Jump to message]({replied_msg.jump_url})"
-        ),
+        description=f"**{replied_msg.content}**\n\n[Jump to message]({replied_msg.jump_url})",
         color=discord.Color.dark_grey()
     )
 
-    # Send message
-    await board_channel.send(embed=embed)
+    # Send message with emoji outside the embed
+    await board_channel.send(f"<:Trann:1405954489432932442>", embed=embed)
 
     # React to command message with thumbs up and thumbs down
     try:
@@ -347,7 +343,7 @@ async def tran(ctx, sub=None, channel: discord.TextChannel = None):
         try:
             await ping_msg.delete()
         except:
-            pass
+           
 
 class ConfirmView(View):
     def __init__(self, author):
