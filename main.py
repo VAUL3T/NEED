@@ -235,7 +235,7 @@ async def admin(ctx, member: discord.Member = None):
         await ctx.send(embed=make_embed(f"<:Ok:1401589649088057425> {ctx.author.mention} **{username}** is now an admin", discord.Color.green()))
 
 @bot.command()
-async def tran_cmd(ctx, sub=None, channel: discord.TextChannel = None):
+async def tran(ctx, sub=None, channel: discord.TextChannel = None):
     data = load_tran_data()
 
     if sub is None:
