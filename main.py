@@ -325,7 +325,7 @@ async def tran(ctx, sub=None, channel: discord.TextChannel = None):
     embed = discord.Embed(
         description=(
             f"<:Trann:1405954489432932442>\n\n"
-            f"{replied_msg.author}: {replied_msg.content}\n\n"
+            f"**{replied_msg.author}** \n {replied_msg.content}\n\n"
             f"**#{replied_msg.channel}**\n"
             f"[Jump to message]({replied_msg.jump_url})"
         ),
