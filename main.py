@@ -1367,24 +1367,25 @@ async def on_message(message):
     user_id = str(message.author.id)
     guild_id = str(message.guild.id)
 
+    # --- AUTO-REACT ---
     config = auto_react_data.get(guild_id, {})
     emoji_react = config.get(user_id)
     if emoji_react:
         try:
             await message.add_reaction(emoji_react)
-        except Exception:
+        except:
             pass
 
-    # maintain recent timestamps (sliding window)
+    # --- MESSAGE HISTORY (SLIDING WINDOW) ---
     timestamps = message_history[user_id]
     timestamps = [t for t in timestamps if now - t <= 5]
     timestamps.append(now)
     message_history[user_id] = timestamps
 
-    # Anti-raid spam handling
+    # --- ANTI-RAID SPAM ---
     if config.get("antiraid_spam_enabled") and len(timestamps) >= 5:
         action = config.get("antiraid_spam_action")
-        reason = f"User triggered anti-raid"
+        reason = "User triggered anti-raid"
         try:
             if action == "mute":
                 role = discord.utils.get(message.guild.roles, name="Muted")
@@ -1393,45 +1394,45 @@ async def on_message(message):
                     for channel in message.guild.channels:
                         try:
                             await channel.set_permissions(role, send_messages=False, add_reactions=False)
-                        except Exception:
+                        except:
                             pass
                 try:
                     await message.author.add_roles(role, reason=reason)
-                except Exception:
+                except:
                     pass
             elif action == "kick" and message.guild.me.guild_permissions.kick_members:
                 try:
                     await message.author.kick(reason=reason)
-                except Exception:
+                except:
                     pass
             elif action == "ban" and message.guild.me.guild_permissions.ban_members:
                 try:
                     await message.guild.ban(message.author, reason=reason)
-                except Exception:
+                except:
                     pass
-        except Exception:
+        except:
             pass
         message_history[user_id] = []
 
-    # autoremove messages
+    # --- AUTOREMOVE MESSAGES ---
     if config.get("autoremove_messages", {}).get(user_id):
         try:
             await message.delete()
-        except Exception:
+        except:
             pass
 
-    # NSFW FILTER
+    # --- LOAD NSFW FILTER ---
     nsfw_file = "modules/nsfw_filter.json"
     if os.path.exists(nsfw_file):
         try:
             with open(nsfw_file, "r") as f:
                 nsfw_data = json.load(f)
-        except Exception:
+        except:
             nsfw_data = {}
 
+        # --- NSFW FILTER ---
         if nsfw_data.get("enabled", False):
-            # Skip exempt users/roles
-            if str(message.author.id) not in nsfw_data.get("exempt_users", []) and not any(
+            if user_id not in nsfw_data.get("exempt_users", []) and not any(
                 str(r.id) in nsfw_data.get("exempt_roles", []) for r in message.author.roles
             ):
                 filtered_words = nsfw_data.get("words", [])
@@ -1454,56 +1455,101 @@ async def on_message(message):
 
                     # Track offenses
                     user_offenses = nsfw_data.setdefault("offenses", {})
-                    user_entry = user_offenses.setdefault(str(message.author.id), [])
-                    user_entry = [t for t in user_entry if now - t <= 600]
+                    user_entry = user_offenses.setdefault(user_id, [])
+                    user_entry = [t for t in user_entry if now - t <= 600]  # 10 min
                     user_entry.append(now)
-                    nsfw_data["offenses"][str(message.author.id)] = user_entry
+                    nsfw_data["offenses"][user_id] = user_entry
 
                     # Punishment if needed
                     if len(user_entry) >= 5:
                         punishment = nsfw_data.get("punishment", "timeout")
                         reason = "NSFW filter triggered 5 times in 10 minutes"
 
-                        if punishment == "mute":
-                            mute_role = discord.utils.get(message.guild.roles, name="Muted")
-                            if mute_role:
-                                await message.author.add_roles(mute_role, reason=reason)
-                            else:
-                                try:
+                        try:
+                            if punishment == "mute":
+                                mute_role = discord.utils.get(message.guild.roles, name="Muted")
+                                if mute_role:
+                                    await message.author.add_roles(mute_role, reason=reason)
+                                else:
                                     await message.author.timeout(
                                         discord.utils.utcnow() + datetime.timedelta(minutes=5),
                                         reason=reason
                                     )
-                                except:
-                                    pass
-
-                        elif punishment == "timeout":
-                            try:
+                            elif punishment == "timeout":
                                 await message.author.timeout(
                                     discord.utils.utcnow() + datetime.timedelta(minutes=5),
                                     reason=reason
                                 )
-                            except:
-                                pass
-
-                        elif punishment == "ban":
-                            try:
-                                await message.guild.ban(message.author, reason=reason)
-                            except:
-                                pass
-
-                        elif punishment == "kick":
-                            try:
+                            elif punishment == "kick":
                                 await message.author.kick(reason=reason)
-                            except:
-                                pass
+                            elif punishment == "ban":
+                                await message.guild.ban(message.author, reason=reason)
+                        except:
+                            pass
 
-                        nsfw_data["offenses"][str(message.author.id)] = []
+                        nsfw_data["offenses"][user_id] = []
 
-                    with open(nsfw_file, "w") as f:
-                        json.dump(nsfw_data, f, indent=4)
-    else:
-        pass  # No file → no filter
+        # --- ANTI-DOXX ---
+        doxx_cfg = nsfw_data.get("doxx", {})
+        if doxx_cfg.get("enabled", False):
+            # Skip exempt users/roles
+            if user_id not in nsfw_data.get("exempt_users", []) and not any(
+                str(r.id) in nsfw_data.get("exempt_roles", []) for r in message.author.roles
+            ):
+                phone_match = re.search(r"(\+?\d{1,3}?[-.\s]??\(?\d{1,4}?\)?[-.\s]??\d{1,4}[-.\s]??\d{1,9})", message.content)
+                email_match = re.search(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", message.content)
+                address_match = re.search(
+                    r"\b([A-Z][a-z]+(?:\s+(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|plaza|platz|place|allee|weg|strasse|straße|str\.))\s?\d{1,4})\b",
+                    message.content, re.IGNORECASE
+                )
+
+                if phone_match or email_match or address_match:
+                    offenses = doxx_cfg.setdefault("offenses", {})
+                    user_entry = offenses.setdefault(user_id, [])
+                    user_entry = [t for t in user_entry if now - t <= 7*24*3600]  # 7 Tage
+                    user_entry.append(now)
+                    offenses[user_id] = user_entry
+                    nsfw_data["doxx"] = doxx_cfg
+
+                    reason = "Doxxing detected (phone/email/address)"
+                    try:
+                        if len(user_entry) >= 4:
+                            # Wiederholungstäter → 7 Tage Timeout
+                            await message.author.timeout(
+                                discord.utils.utcnow() + datetime.timedelta(days=7),
+                                reason="Repeated doxxing — 1 week timeout"
+                            )
+                        else:
+                            punishment = doxx_cfg.get("punishment", "timeout")
+                            if punishment == "mute":
+                                mute_role = discord.utils.get(message.guild.roles, name="Muted")
+                                if mute_role:
+                                    await message.author.add_roles(mute_role, reason=reason)
+                                else:
+                                    await message.author.timeout(
+                                        discord.utils.utcnow() + datetime.timedelta(minutes=5),
+                                        reason=reason
+                                    )
+                            elif punishment == "timeout":
+                                await message.author.timeout(
+                                    discord.utils.utcnow() + datetime.timedelta(minutes=5),
+                                    reason=reason
+                                )
+                            elif punishment == "kick":
+                                await message.author.kick(reason=reason)
+                            elif punishment == "ban":
+                                await message.guild.ban(message.author, reason=reason)
+                    except:
+                        pass
+
+                    try:
+                        await message.delete()
+                    except:
+                        pass
+
+        # --- SAVE NSFW DATA ---
+        with open(nsfw_file, "w") as f:
+            json.dump(nsfw_data, f, indent=4)
 
     await bot.process_commands(message)
 # ===================== ON RAW REACTION ADD =====================
